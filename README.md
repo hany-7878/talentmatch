@@ -1,7 +1,23 @@
 
 # TalentMatch
+TalentMatch is a modern freelance and job marketplace connecting skilled candidates with time-constrained hiring managers. It leverages lightweight AI for smart matching, fast applications, and transparent workflows—without unnecessary complexity. Making it a Progressive Web App (PWA) enhances usability and accessibility.
 
-**TalentMatch** is a modern freelance and job marketplace connecting skilled candidates with time-constrained hiring managers. It leverages lightweight AI for smart matching, fast applications, and transparent workflows—without adding unnecessary complexity.
+Why PWA?
+
+Offline Access: Browse projects, view saved proposals, and check profiles without internet.
+
+Installable Experience: Works on mobile & desktop like a native app, no app store needed.
+
+Fast & Reliable: Service workers cache assets and API responses, even on slow networks.
+
+Seamless Updates: Users always get the latest version automatically.
+
+Cross-Platform: Single codebase works on desktop and mobile, reducing maintenance.
+
+Enhanced Engagement: Push notifications keep users informed about projects, proposals, and messages.
+
+Enhanced Engagement
+Push notifications allow TalentMatch to inform users about new projects, proposal updates, or messages, increasing retention and platform activity.
 ## Table of Contents
 * [Features](#features)
 * [Target Users](#target-users)
