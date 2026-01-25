@@ -1,11 +1,13 @@
+// App.tsx
+import LandingPage from './pages/Landing'
+import { AuthProvider } from './context/AuthContext'
+
 function App() {
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-100">
-      <h1 className="text-3xl font-bold text-blue-600">
-        talent match🚀
-      </h1>
-    </div>
-  );
+    <AuthProvider>
+      <LandingPage />
+    </AuthProvider>
+  )
 }
 
-export default App;
+export default App
