@@ -1,3 +1,4 @@
+<img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/28a2dc43-dd57-43c0-8842-8d846e6ecc42" />
 
 # TalentMatch
 
