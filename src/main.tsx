@@ -1,14 +1,19 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './index.css'
+import { BrowserRouter } from 'react-router-dom' 
 import App from './App.tsx'
+import { AuthProvider } from './context/AuthContext' 
 import { registerSW } from 'virtual:pwa-register'
+import './index.css'
 
-// ✅ register service worker OUTSIDE render
 registerSW({ immediate: true })
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </BrowserRouter>
   </StrictMode>,
 )

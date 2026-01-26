@@ -1,55 +1,108 @@
-import { createContext, useState, useContext,  useEffect } from 'react';
-import type { ReactNode } from 'react'
-import { loginUser, logoutUser, refreshToken } from '../services/api';
-
-type AuthContextType = {
-  user: any;
-  accessToken: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-};
+import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import type { ReactNode } from 'react';
+import { supabase } from '../lib/supabaseClient';
+import type { User, Session } from '@supabase/supabase-js';
+import type { Profile, AuthContextType } from '../types'; 
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<any>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const login = async (email: string, password: string) => {
-    const data = await loginUser({ email, password });
-    setAccessToken(data.access);
-    localStorage.setItem('refreshToken', data.refresh);
-    setUser(data.user); // backend should return user info
-  };
+  const refreshProfile = useCallback(async (userId?: string) => {
+    const id = userId || user?.id;
+    if (!id) {
+      setIsLoading(false);
+      return;
+    }
 
-  const logout = async () => {
-    await logoutUser();
-    setAccessToken(null);
-    setUser(null);
-    localStorage.removeItem('refreshToken');
-  };
+    try {
+      // maybeSingle() prevents the app from crashing if the profile 
+      // row hasn't been created yet by a database trigger.
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle(); 
 
-  // Keep user authenticated across sessions
+      if (error) throw error;
+      
+      if (data) {
+        setProfile(data as Profile);
+      }
+    } catch (err) {
+      console.error("Error refreshing profile:", err);
+    } finally {
+      // Ensure we stop the loading spinner regardless of success or failure
+      setIsLoading(false);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
-    const refresh = async () => {
-      const storedRefresh = localStorage.getItem('refreshToken');
-      if (storedRefresh) {
-        const data = await refreshToken(storedRefresh);
-        setAccessToken(data.access);
+    const initAuth = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        if (initialSession) {
+          setSession(initialSession);
+          setUser(initialSession.user);
+          await refreshProfile(initialSession.user.id);
+        } else {
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error("Auth init error:", error);
+        setIsLoading(false);
       }
     };
-    refresh();
-  }, []);
+
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      setSession(currentSession);
+      const currentUser = currentSession?.user ?? null;
+      setUser(currentUser);
+      
+      if (currentUser) {
+        await refreshProfile(currentUser.id);
+      } else {
+        setProfile(null);
+        setIsLoading(false);
+      }
+
+      // Special handling for sign out to ensure clean state
+      if (event === 'SIGNED_OUT') {
+        setProfile(null);
+        setSession(null);
+        setUser(null);
+        setIsLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [refreshProfile]);
+
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error("Logout error:", error);
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, login, logout }}>
+    <AuthContext.Provider value={{ user, profile, session, logout, isLoading, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used inside AuthProvider');
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
+  return ctx;
 };

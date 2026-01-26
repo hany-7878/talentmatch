@@ -3,10 +3,10 @@ import HeroImage from '../assets/Images/option1.png';
 export default function ImageSection() {
   return (
     <div
-      className="relative w-full h-screen bg-cover bg-center flex items-end p-5"
+      className="relative w-full h-screen bg-cover bg-center flex items-end p-4"
       style={{ backgroundImage: `url(${HeroImage})` }}
     >
-      {/* Overlay for better text readability */}
+    
       <div className="absolute inset-0 bg-black/40"></div>
 
       {/* Text content */}
