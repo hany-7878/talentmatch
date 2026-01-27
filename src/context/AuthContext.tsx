@@ -12,73 +12,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Optimized Profile Fetcher
   const refreshProfile = useCallback(async (userId?: string) => {
-    const id = userId || user?.id;
-    if (!id) {
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      // maybeSingle() prevents the app from crashing if the profile 
-      // row hasn't been created yet by a database trigger.
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', id)
+        .eq('id', userId)
         .maybeSingle(); 
 
       if (error) throw error;
       
       if (data) {
         setProfile(data as Profile);
+        return data;
       }
+      return null;
     } catch (err) {
-      console.error("Error refreshing profile:", err);
-    } finally {
-      // Ensure we stop the loading spinner regardless of success or failure
-      setIsLoading(false);
+      console.error("Profile Fetch Error:", err);
+      return null;
     }
-  }, [user?.id]);
+  }, []);
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        if (initialSession) {
-          setSession(initialSession);
-          setUser(initialSession.user);
-          await refreshProfile(initialSession.user.id);
-        } else {
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error("Auth init error:", error);
-        setIsLoading(false);
-      }
-    };
-
-    initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      setSession(currentSession);
-      const currentUser = currentSession?.user ?? null;
-      setUser(currentUser);
-      
-      if (currentUser) {
-        await refreshProfile(currentUser.id);
+    // Single source of truth for auth state handling
+    const handleAuthState = async (currentSession: Session | null) => {
+      if (currentSession?.user) {
+        setSession(currentSession);
+        setUser(currentSession.user);
+        // We wait for the profile before unlocking the UI
+        await refreshProfile(currentSession.user.id);
       } else {
-        setProfile(null);
-        setIsLoading(false);
-      }
-
-      // Special handling for sign out to ensure clean state
-      if (event === 'SIGNED_OUT') {
-        setProfile(null);
         setSession(null);
         setUser(null);
-        setIsLoading(false);
+        setProfile(null);
       }
+      setIsLoading(false);
+    };
+
+    // 1. Initial Session Check
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      handleAuthState(s);
+    });
+
+    // 2. Listen for Auth Changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      handleAuthState(s);
     });
 
     return () => subscription.unsubscribe();
@@ -88,8 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       await supabase.auth.signOut();
-    } catch (error) {
-      console.error("Logout error:", error);
+    } finally {
       setIsLoading(false);
     }
   };

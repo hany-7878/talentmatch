@@ -8,7 +8,7 @@ type Role = 'seeker' | 'manager';
 export default function AuthForm() {
   const navigate = useNavigate();
   
-  const [isLogin, setIsLogin] = useState(true); // Default to login for better UX
+  const [isLogin, setIsLogin] = useState(true);
   const [role, setRole] = useState<Role>('seeker');
   const [showPolicy, setShowPolicy] = useState(false);
   const [error, setError] = useState("");
@@ -25,78 +25,38 @@ export default function AuthForm() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const validatePassword = (pw: string) => {
-    const regex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
-    return regex.test(pw);
-  };
+  // const validatePassword = (pw: string) => {
+  //   const regex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+  //   return regex.test(pw);
+  // };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setIsLoading(true);
+  e.preventDefault();
+  setError("");
+  setIsLoading(true);
 
-    try {
-      if (isLogin) {
-        // --- 1. LOGIN ---
-        const { data: authData, error: loginError } = await supabase.auth.signInWithPassword({
-          email: formData.email,
+  try {
+    const { data, error: authError } = isLogin 
+      ? await supabase.auth.signInWithPassword({ email: formData.email, password: formData.password })
+      : await supabase.auth.signUp({ 
+          email: formData.email, 
           password: formData.password,
+          options: { data: { role: role.toUpperCase(), full_name: formData.fullName } }
         });
 
-        if (loginError) throw loginError;
+    if (authError) throw authError;
 
-        if (authData?.user) {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', authData.user.id)
-            .maybeSingle();
-
-          if (profileError) console.error("Profile fetch error:", profileError);
-
-          // Redirect everyone to the master /dashboard
-          // The Dashboard component logic will handle showing the right view
-          navigate('/dashboard');
-        }
-      } else {
-        // --- 2. REGISTER ---
-        if (formData.password !== formData.confirmPassword) {
-          throw new Error('Passwords do not match!');
-        }
-        if (!validatePassword(formData.password)) {
-          throw new Error('Password: 8+ chars, must include letters, numbers, and symbols.');
-        }
-
-        const supabaseRole = role.toUpperCase(); 
-
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
-          options: {
-            data: {
-              role: supabaseRole, 
-              full_name: formData.fullName, 
-            }
-          }
-        });
-
-        if (signUpError) throw signUpError;
-
-        if (signUpData.user && signUpData.session) {
-            // Auto-login success - send to unified dashboard
-            navigate('/dashboard');
-        } else {
-            alert("Success! Check your email for a confirmation link.");
-            setIsLogin(true);
-        }
-      }
-    } catch (err: any) {
-      console.error("Auth error:", err);
-      setError(err.message || 'Authentication failed');
-    } finally {
-      setIsLoading(false); 
+    if (data.user) {
+      // Small delay to let the AuthContext catch the session change
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 100);
     }
-  };
+  } catch (err: any) {
+    setError(err.message);
+    setIsLoading(false); // Only unlock button on ERROR
+  }
+};
 
   return (
     <div className="relative flex flex-col justify-center h-full p-4 w-full md:w-1/2 overflow-hidden bg-white">
@@ -123,7 +83,6 @@ export default function AuthForm() {
               <button
                 key={type.id}
                 type="button"
-                title={`Select ${type.label} role`}
                 onClick={() => setRole(type.id as Role)}
                 className={`flex-1 flex flex-col items-center gap-2 p-4 border-2 rounded-xl transition-all ${
                   role === type.id 
@@ -229,7 +188,6 @@ export default function AuthForm() {
           </button>
         </p>
 
-        {/* Footer Link for Policy */}
         <button 
           onClick={() => setShowPolicy(true)}
           className="mt-8 text-[10px] text-gray-400 uppercase tracking-widest hover:text-gray-600 transition-colors mx-auto block"
@@ -247,9 +205,8 @@ export default function AuthForm() {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-gray-800">Legal Info</h2>
           <button 
+           title='time'
             onClick={() => setShowPolicy(false)} 
-            title="Close Policy"
-            aria-label="Close Policy" 
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
             <FaTimes />

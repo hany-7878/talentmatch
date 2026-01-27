@@ -1,24 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import ManagerView from '../components/dashboard/ManagerView';
+import ManagerView from '../components/dashboard/manager/ManagerView';
 import SeekerView from '../components/dashboard/SeekerView';
 import Sidebar from '../components/dashboard/Sidebar';
 import ProfileSettings from '../components/dashboard/ProfileSettings';
-import { FaSignOutAlt } from 'react-icons/fa';
+import GeneralSettings from '../components/dashboard/GeneralSettings';
+import { FaSignOutAlt, FaSync } from 'react-icons/fa';
 
 export default function Dashboard() {
-  const { profile, logout, isLoading, user } = useAuth();
+  const { profile, logout, isLoading, user, refreshProfile } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'profile'>('overview');
+  
+  const [activeTab, setActiveTab] = useState<string>('pipeline'); 
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // 1. Single source of truth for redirection
   useEffect(() => {
-    // Only redirect if we are SURE loading is finished AND no user exists
     if (!isLoading && !user) {
       navigate('/auth', { replace: true });
     }
   }, [user, isLoading, navigate]);
+
+  useEffect(() => {
+    if (profile && activeTab === 'pipeline' && profile.role === 'SEEKER') {
+      setActiveTab('discovery');
+    }
+  }, [profile]);
 
   const handleLogout = async () => {
     try {
@@ -29,36 +36,47 @@ export default function Dashboard() {
     }
   };
 
-  // 2. Loading State (Keep this simple)
+  const handleManualRefresh = async () => {
+    if (!user) return;
+    setIsSyncing(true);
+    await refreshProfile(); 
+    setIsSyncing(false);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-blue-600 font-medium">Loading Workspace...</p>
+          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-indigo-600 font-medium">Loading Workspace...</p>
         </div>
       </div>
     );
   }
 
-  // 3. Fallback for the "Race Condition" 
-  // If we have a user but the profile row is still being fetched/created
-  if (!profile && user) {
+  if (user && !profile) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500">Syncing profile data...</p>
+        <div className="text-center max-w-sm p-6 bg-white rounded-2xl shadow-xl border border-gray-100">
+          <div className={`w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4 ${isSyncing ? 'animate-spin' : ''}`}></div>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Finalizing Profile</h3>
+          <p className="text-gray-500 text-sm mb-6">We're setting up your workspace. This usually takes a few seconds.</p>
+          <button 
+            onClick={handleManualRefresh}
+            disabled={isSyncing}
+            className="flex items-center justify-center gap-2 w-full py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 font-bold"
+          >
+            <FaSync className={isSyncing ? 'animate-spin' : ''} />
+            {isSyncing ? 'Checking...' : 'Refresh Status'}
+          </button>
         </div>
       </div>
     );
   }
 
-  // If absolutely no user/profile, don't render anything (useEffect will handle redirect)
   if (!profile) return null;
 
-  const roleRaw = (profile.role || 'seeker').toLowerCase();
-  const currentRole = roleRaw === 'manager' ? 'manager' : 'seeker';
+  const currentRole = (profile.role || 'seeker').toLowerCase() === 'manager' ? 'manager' : 'seeker';
   const firstLetter = (profile.full_name?.[0] || user?.email?.[0] || 'U').toUpperCase();
 
   return (
@@ -69,17 +87,21 @@ export default function Dashboard() {
         onTabChange={setActiveTab} 
       />
       
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
         <header className="bg-white border-b border-gray-200 px-4 sm:px-8 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
           <div className="truncate pr-4">
             <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
               {activeTab === 'profile' 
                 ? 'Account Settings' 
-                : (currentRole === 'manager' ? 'Hiring Control Center' : 'Candidate Portal')}
+                : (activeTab === 'settings' ? 'General Settings' : (currentRole === 'manager' ? 'Hiring Control Center' : 'Candidate Portal'))}
             </h1>
-            <p className="text-[10px] sm:text-xs text-gray-500 italic flex items-center gap-1">
-              Logged in as <span className="font-semibold text-blue-600 uppercase tracking-wider">{currentRole}</span>
-            </p>
+            <div className="flex items-center gap-2">
+               <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded uppercase tracking-wider">
+                 {currentRole}
+               </span>
+               <span className="text-[10px] text-gray-400">|</span>
+               <span className="text-[10px] text-gray-500 truncate max-w-[150px] font-medium">{user?.email}</span>
+            </div>
           </div>
           
           <div className="flex items-center gap-3 sm:gap-5 shrink-0">
@@ -89,7 +111,7 @@ export default function Dashboard() {
               </p>
               <button 
                 onClick={handleLogout}
-                className="text-[11px] text-red-500 hover:text-red-700 font-bold transition-colors uppercase tracking-tight flex items-center gap-1 ml-auto mt-1"
+                className="text-[11px] text-red-500 hover:text-red-700 font-bold uppercase tracking-tight flex items-center gap-1 ml-auto mt-1"
               >
                 Sign Out <FaSignOutAlt size={10} />
               </button>
@@ -97,29 +119,34 @@ export default function Dashboard() {
             
             <button 
               onClick={() => setActiveTab('profile')}
-              className={`relative w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden shadow-md transition-all active:scale-95 group ${
-                activeTab === 'profile' ? 'ring-2 ring-indigo-500 ring-offset-2' : 'hover:shadow-lg'
+              className={`relative w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden shadow-md transition-all active:scale-95 ${
+                activeTab === 'profile' ? 'ring-2 ring-indigo-500 ring-offset-2' : ''
               }`}
             >
               {profile.avatar_url ? (
                 <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-              ) : null}
-              <div className={`absolute inset-0 flex items-center justify-center text-white font-bold text-lg bg-gradient-to-tr from-blue-600 to-indigo-500 ${profile.avatar_url ? '-z-10' : 'z-0'}`}>
-                {firstLetter}
-              </div>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-lg bg-gradient-to-tr from-blue-600 to-indigo-500">
+                  {firstLetter}
+                </div>
+              )}
             </button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-gray-50">
           <div className="max-w-7xl mx-auto">
             {activeTab === 'profile' ? (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <ProfileSettings />
-              </div>
+              <ProfileSettings />
+            ) : activeTab === 'settings' ? (
+              <GeneralSettings />
             ) : (
-              <div className="animate-in fade-in duration-500">
-                {currentRole === 'manager' ? <ManagerView /> : <SeekerView />}
+              <div>
+                {currentRole === 'manager' ? (
+                  <ManagerView initialView={activeTab as any} /> 
+                ) : (
+                  <SeekerView />
+                )}
               </div>
             )}
           </div>
