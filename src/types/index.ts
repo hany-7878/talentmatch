@@ -8,6 +8,7 @@ export interface Profile {
   avatar_url: string | null;
   role: UserRole;
   bio: string | null;
+  settings?: any;
   
   // Seeker Specifics
   skills: string[] | null;
@@ -46,4 +47,13 @@ export interface Application {
   match_score: number;
   created_at: string;
   projects?: JobProject; 
+}
+
+interface Job {
+  id: string;
+  title: string;
+  description: string;
+  requirements: string[]; 
+  location_type: string;
+  budget?: string;
 }

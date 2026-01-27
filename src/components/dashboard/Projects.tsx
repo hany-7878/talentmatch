@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { FaTrashAlt, FaEdit, FaSearch, FaBriefcase } from 'react-icons/fa';
+import { FaTrashAlt,  FaBriefcase } from 'react-icons/fa';
 
 export default function Projects() {
   const [projects, setProjects] = useState<any[]>([]);
