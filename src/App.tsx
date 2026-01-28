@@ -4,6 +4,7 @@ import LandingPage from './pages/Landing';
 import AuthForm from './components/AuthForm';
 import Dashboard from './pages/Dashboard';
 import { Link } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isLoading } = useAuth();
@@ -19,16 +20,19 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) return <Navigate to="/" replace />;
   
   return <>{children}</>;
 };
 
 function App() {
   return (
+    <> 
+    <Toaster position="top-right" reverseOrder={false} />
     <Routes>
+      
       <Route path="/" element={<LandingPage />} />
-      <Route path="/auth" element={<AuthForm />} />
+      <Route path="/" element={<AuthForm />} />
       
       <Route 
         path="/dashboard" 
@@ -53,6 +57,7 @@ function App() {
         </div>
       } />
     </Routes>
+    </>
   );
 }
 

@@ -47,13 +47,10 @@ export interface Application {
   match_score: number;
   created_at: string;
   projects?: JobProject; 
-}
-
-interface Job {
-  id: string;
-  title: string;
   description: string;
   requirements: string[]; 
-  location_type: string;
+   location_type: string;
   budget?: string;
+  title: string;
 }
+

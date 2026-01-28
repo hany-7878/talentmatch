@@ -13,7 +13,9 @@ import {
 type ProfileFields = Pick<Profile, 'full_name' | 'bio' | 'website_url' | 'experience_level' | 'avatar_url' | 'resume_url'>;
 interface ProfileForm extends ProfileFields {
   skills: string; 
-  languages: string; // New field
+  languages: string;
+  email: string;
+  phone: string;
 }
 
 export default function ProfileSettings() {
@@ -34,23 +36,29 @@ export default function ProfileSettings() {
     website_url: '',
     experience_level: 'Junior',
     avatar_url: '',
-    resume_url: ''
+    resume_url: '',
+    email: '', 
+  phone: ''
   });
 
-  useEffect(() => {
-    if (profile) {
-      setFormData({
-        full_name: profile.full_name || '',
-        bio: profile.bio || '',
-        skills: profile.skills?.join(', ') || '',
-        languages: (profile as any).languages?.join(', ') || '', // Assuming languages is an array in DB
-        website_url: profile.website_url || '',
-        experience_level: profile.experience_level || 'Junior',
-        avatar_url: profile.avatar_url || '',
-        resume_url: profile.resume_url || ''
-      });
-    }
-  }, [profile]);
+ useEffect(() => {
+  if (profile) {
+    setFormData({
+      full_name: profile.full_name || '',
+      bio: profile.bio || '',
+      skills: Array.isArray(profile.skills) ? profile.skills.join(', ') : '',
+      languages: Array.isArray((profile as any).languages) ? (profile as any).languages.join(', ') : '',
+      email: (profile as any).email || '', 
+      phone: (profile as any).phone || '',
+      website_url: profile.website_url || '',
+      experience_level: profile.experience_level || 'Junior',
+      avatar_url: profile.avatar_url || '',
+      resume_url: profile.resume_url || '',
+      company_name: (profile as any).company_name || '',
+      job_title: (profile as any).job_title || '',
+    });
+  }
+}, [profile]);
 
   const handleViewResume = async () => {
     if (!formData.resume_url) return;
@@ -96,13 +104,14 @@ export default function ProfileSettings() {
     try {
       await updateProfileData({
         full_name: formData.full_name,
-        bio: formData.bio,
-        skills: formData.skills.split(',').map(s => s.trim()).filter(Boolean),
-        // Casting to any if your type file isn't updated for languages yet
-        languages: formData.languages.split(',').map(l => l.trim()).filter(Boolean) as any,
-        website_url: formData.website_url,
-        experience_level: formData.experience_level as any,
-        updated_at: new Date().toISOString()
+      bio: formData.bio,
+      email: formData.email, // Add this
+      phone: formData.phone, // Add this
+      skills: formData.skills.split(',').map(s => s.trim()).filter(Boolean),
+      languages: formData.languages.split(',').map(l => l.trim()).filter(Boolean) as any,
+      website_url: formData.website_url,
+      experience_level: formData.experience_level as any,
+      updated_at: new Date().toISOString()
       });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -151,7 +160,7 @@ export default function ProfileSettings() {
                   (formData.full_name && formData.full_name[0]) || 'U'
                 )}
               </div>
-              <button 
+              <button title='button'
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="absolute -bottom-2 -right-2 p-2 bg-indigo-600 rounded-lg shadow-lg text-white hover:scale-110 transition-transform"
@@ -171,6 +180,34 @@ export default function ProfileSettings() {
             <div className="flex items-center gap-2 text-blue-600 font-bold text-sm uppercase tracking-wider">
               <FaUser /> Identification
             </div>
+            {/* CONTACT DETAILS */}
+<div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+  <div className="flex items-center gap-2 text-emerald-600 font-bold text-sm uppercase tracking-wider">
+    <FaGlobe /> Contact Channels
+  </div>
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="space-y-1">
+      <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Professional Email</label>
+      <input 
+        type="email" 
+        placeholder="hello@example.com"
+        className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+        value={formData.email}
+        onChange={(e) => setFormData({...formData, email: e.target.value})}
+      />
+    </div>
+    <div className="space-y-1">
+      <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Phone Number</label>
+      <input 
+        type="tel" 
+        placeholder="+1 (555) 000-0000"
+        className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+        value={formData.phone}
+        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+      />
+    </div>
+  </div>
+</div>
             <div className="grid gap-4">
               <input 
                 type="text" 
@@ -228,7 +265,7 @@ export default function ProfileSettings() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  <select 
+                  <select title='se'
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none"
                     value={formData.experience_level}
                     onChange={(e) => setFormData({...formData, experience_level: e.target.value as any})}
@@ -261,7 +298,7 @@ export default function ProfileSettings() {
                   <input type="file" ref={resumeInputRef} hidden accept=".pdf" onChange={(e) => handleFileUpload(e, 'resumes')} />
                 </div>
                 {formData.resume_url && (
-                  <button type="button" onClick={handleViewResume} className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50">
+                  <button title='rev' type="button" onClick={handleViewResume} className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50">
                     <FaExternalLinkAlt size={12} className="text-gray-400" />
                   </button>
                 )}

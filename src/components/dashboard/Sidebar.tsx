@@ -1,8 +1,8 @@
 import { 
   FaThLarge, FaBriefcase, FaUsers,   
-  FaCog, FaBars, FaTimes, FaUserCircle, FaRocket
+  FaCog, FaBars, FaTimes, FaUserCircle, FaRocket, FaPaperPlane
 } from 'react-icons/fa';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 interface SidebarProps {
   role: 'manager' | 'seeker';
@@ -14,50 +14,56 @@ interface SidebarProps {
 export default function Sidebar({ role, activeTab, onTabChange, applicationCount = 0 }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Dynamic link configuration
-  const managerLinks = [
-    { name: 'Dashboard', icon: <FaThLarge />, tab: 'pipeline' },
-    { name: 'Active Projects', icon: <FaBriefcase />, tab: 'management' },
-    { name: 'Talent Pool', icon: <FaUsers />, tab: 'discovery' },
-  ];
+  // Memoize links so they don't re-calculate unless role or counts change
+  const links = useMemo(() => {
+    if (role === 'manager') {
+      return [
+        { name: 'Dashboard', icon: <FaThLarge />, tab: 'pipeline' },
+        { name: 'Active Projects', icon: <FaBriefcase />, tab: 'management' },
+        { name: 'Talent Pool', icon: <FaUsers />, tab: 'discovery' },
+        { name: 'Outreach', icon: <FaPaperPlane />, tab: 'invites' }, // Synced with ManagerView
+      ];
+    }
+    return [
+      { name: 'Explore Jobs', icon: <FaThLarge />, tab: 'discovery' }, 
+      { 
+        name: 'My Applications', 
+        icon: <FaRocket />, 
+        tab: 'applications',
+        badge: applicationCount > 0 ? applicationCount : null 
+      },
+    ];
+  }, [role, applicationCount]);
 
-  const seekerLinks = [
-    // Consolidated Discovery and Search into one "Explore" tab
-    { name: 'Explore Jobs', icon: <FaThLarge />, tab: 'discovery' }, 
-    { 
-      name: 'My Applications', 
-      icon: <FaRocket />, 
-      tab: 'applications',
-      badge: applicationCount > 0 ? applicationCount : null 
-    },
-  ];
-
-  const links = role === 'manager' ? managerLinks : seekerLinks;
+  const handleTabClick = (tab: string) => {
+    onTabChange(tab);
+    setIsOpen(false);
+  };
 
   return (
     <>
-      {/* Mobile Toggle Trigger */}
-      {!isOpen && (
-        <button 
-          title='Open Menu'
-          onClick={() => setIsOpen(true)}
-          className="lg:hidden fixed top-6 left-6 z-[60] p-3 bg-indigo-600 text-white rounded-2xl shadow-xl hover:scale-110 active:scale-95 transition-all"
-        >
-          <FaBars size={18} />
-        </button>
-      )}
+      {/* Mobile Toggle Trigger - Improved Visibility Logic */}
+      <button 
+        title='Open Menu'
+        onClick={() => setIsOpen(true)}
+        className={`lg:hidden fixed top-6 left-6 z-[60] p-3 bg-indigo-600 text-white rounded-2xl shadow-xl transition-all ${
+          isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        }`}
+      >
+        <FaBars size={18} />
+      </button>
 
       {/* Backdrop */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-slate-950/60 z-[70] lg:hidden backdrop-blur-md transition-opacity animate-in fade-in duration-300"
+          className="fixed inset-0 bg-slate-950/60 z-[70] lg:hidden backdrop-blur-md animate-in fade-in duration-300"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       <aside className={`
         fixed inset-y-0 left-0 z-[80] w-72 bg-slate-950 text-slate-400 flex flex-col h-screen 
-        border-r border-slate-800/50 transition-all duration-500 ease-in-out
+        border-r border-slate-800/50 transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
         lg:relative lg:translate-x-0
       `}>
@@ -66,7 +72,7 @@ export default function Sidebar({ role, activeTab, onTabChange, applicationCount
         <div className="p-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-blue-700 rounded-2xl flex items-center justify-center text-white font-black italic shadow-lg shadow-indigo-500/20">
+              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-blue-700 rounded-2xl flex items-center justify-center text-white font-black italic shadow-lg">
                 TM
               </div>
               <div className="flex flex-col">
@@ -74,20 +80,20 @@ export default function Sidebar({ role, activeTab, onTabChange, applicationCount
                 <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">{role}</span>
               </div>
             </div>
-            <button title='Close Menu' onClick={() => setIsOpen(false)} className="lg:hidden text-slate-500 hover:text-white p-2">
+            <button title='open' onClick={() => setIsOpen(false)} className="lg:hidden text-slate-500 hover:text-white p-2">
               <FaTimes size={18} />
             </button>
           </div>
         </div>
         
         {/* Main Navigation */}
-        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto mt-4 custom-scrollbar">
+        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto mt-4">
           <p className="text-[10px] uppercase tracking-widest text-slate-600 font-black mb-4 px-4">Workspace</p>
           
           {links.map((link) => (
             <button 
-              key={link.name} 
-              onClick={() => { onTabChange(link.tab); setIsOpen(false); }}
+              key={link.tab} 
+              onClick={() => handleTabClick(link.tab)}
               className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all group relative ${
                 activeTab === link.tab ? 'bg-indigo-600/10 text-white' : 'hover:bg-white/5 hover:text-slate-200'
               }`}
@@ -104,8 +110,8 @@ export default function Sidebar({ role, activeTab, onTabChange, applicationCount
                 <span className="font-bold text-sm tracking-wide">{link.name}</span>
               </div>
 
-              {'badge' in link && link.badge && (
-                <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg shadow-lg">
+              {link.badge && (
+                <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg">
                   {link.badge}
                 </span>
               )}
@@ -116,26 +122,22 @@ export default function Sidebar({ role, activeTab, onTabChange, applicationCount
         {/* User Footer Section */}
         <div className="p-4 bg-slate-950/50 border-t border-slate-800/50">
           <button 
-            onClick={() => { onTabChange('profile'); setIsOpen(false); }}
+            onClick={() => handleTabClick('profile')}
             className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all group mb-2 ${
               activeTab === 'profile' ? 'bg-indigo-600/10 text-white' : 'hover:bg-white/5 hover:text-slate-200'
             }`}
           >
-            <FaUserCircle className={`text-lg transition-colors ${
-              activeTab === 'profile' ? 'text-indigo-500' : 'text-slate-500 group-hover:text-indigo-400'
-            }`} />
+            <FaUserCircle className={`text-lg ${activeTab === 'profile' ? 'text-indigo-500' : 'text-slate-500'}`} />
             <span className="font-bold text-sm">My Profile</span>
           </button>
 
           <button 
-            onClick={() => { onTabChange('settings'); setIsOpen(false); }}
+            onClick={() => handleTabClick('settings')}
             className={`w-full flex items-center gap-4 px-4 py-3 transition-all group rounded-2xl ${
               activeTab === 'settings' ? 'text-indigo-400 bg-indigo-500/5' : 'text-slate-500 hover:text-indigo-400'
             }`}
           >
-            <FaCog className={`transition-all duration-500 ${
-              activeTab === 'settings' ? 'rotate-90 text-indigo-400' : 'group-hover:rotate-90'
-            }`} />
+            <FaCog className={`transition-all duration-500 ${activeTab === 'settings' ? 'rotate-90 text-indigo-400' : 'group-hover:rotate-90'}`} />
             <span className="font-bold text-[10px] uppercase tracking-widest">Settings</span>
           </button>
         </div>

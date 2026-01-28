@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabaseClient'; 
 import { 
   FaEdit, FaTrashAlt, FaMapMarkerAlt, 
-  FaTimes, FaSave, FaBriefcase, FaCircleNotch, FaEye, FaLock, FaBolt 
+  FaTimes, FaSave, FaBriefcase, FaCircleNotch, FaEye, FaLock, FaBolt, FaPlus 
 } from 'react-icons/fa';
+import toast from 'react-hot-toast';
 
 interface Job {
   id: string;
@@ -12,15 +13,16 @@ interface Job {
   status: string;
   description: string;
   budget?: string;
-  requirements?: string[] | string; // Handled as array in DB, sometimes string in UI
+  requirements?: string[] | string;
   category?: string;
 }
 
 interface JobManagementProps {
   onSelectJob?: (job: Job) => void;
+  onAddNew?: () => void; // Added for PM empty-state logic
 }
 
-export default function JobManagement({ onSelectJob }: JobManagementProps) {
+export default function JobManagement({ onSelectJob, onAddNew }: JobManagementProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,6 +32,16 @@ export default function JobManagement({ onSelectJob }: JobManagementProps) {
   useEffect(() => {
     fetchJobs();
   }, []);
+
+  // Senior Dev: Handle Scroll Lock
+  useEffect(() => {
+    if (editingJob) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [editingJob]);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -48,14 +60,26 @@ export default function JobManagement({ onSelectJob }: JobManagementProps) {
 
   const toggleJobStatus = async (jobId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'open' ? 'closed' : 'open';
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
+
     const { error } = await supabase
       .from('projects')
       .update({ status: newStatus })
       .eq('id', jobId);
 
-    if (!error) {
-      setJobs(jobs.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
+    if (error) {
+      toast.error("Failed to update status");
+      fetchJobs(); 
+    } else {
+      toast.success(`Job ${newStatus === 'open' ? 'Published' : 'Closed'}`);
     }
+  };
+
+  const handleEditInit = (job: Job) => {
+    setEditingJob({
+      ...job,
+      requirements: Array.isArray(job.requirements) ? job.requirements.join(', ') : (job.requirements || '')
+    });
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -63,28 +87,35 @@ export default function JobManagement({ onSelectJob }: JobManagementProps) {
     if (!editingJob) return;
     setActionLoading(true);
 
-    // Ensure requirements is an array for the database
-    const requirementsArray = typeof editingJob.requirements === 'string' 
-      ? (editingJob.requirements as string).split(',').map(r => r.trim())
+    const reqArray = typeof editingJob.requirements === 'string' 
+      ? editingJob.requirements.split(',').map(r => r.trim()).filter(Boolean)
       : editingJob.requirements;
+
+    const updatedData = {
+      ...editingJob,
+      requirements: reqArray,
+      title: editingJob.title.trim()
+    };
 
     const { error } = await supabase
       .from('projects')
       .update({
-        title: editingJob.title,
-        location_type: editingJob.location_type,
-        status: editingJob.status,
-        description: editingJob.description,
-        budget: editingJob.budget,
-        requirements: requirementsArray,
-        category: editingJob.category
+        title: updatedData.title,
+        location_type: updatedData.location_type,
+        status: updatedData.status,
+        description: updatedData.description,
+        budget: updatedData.budget,
+        requirements: updatedData.requirements,
+        category: updatedData.category
       })
       .eq('id', editingJob.id);
 
     if (!error) {
-      // Re-fetch to ensure local state is perfectly synced with DB
-      await fetchJobs();
+      setJobs(prev => prev.map(j => j.id === editingJob.id ? (updatedData as Job) : j));
       setEditingJob(null);
+      toast.success("Changes saved!");
+    } else {
+      toast.error(error.message);
     }
     setActionLoading(false);
   };
@@ -96,15 +127,13 @@ export default function JobManagement({ onSelectJob }: JobManagementProps) {
     }
 
     setActionLoading(true);
-    const { error } = await supabase
-      .from('projects')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('projects').delete().eq('id', id);
 
     if (!error) {
       setJobs(jobs.filter(j => j.id !== id));
-      setDeleteConfirmId(null);
+      toast.success("Job deleted permanently");
     }
+    setDeleteConfirmId(null);
     setActionLoading(false);
   };
 
@@ -116,71 +145,78 @@ export default function JobManagement({ onSelectJob }: JobManagementProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-end mb-8">
         <div>
-          <h2 className="text-2xl font-black text-gray-900">Job Inventory</h2>
-          <p className="text-gray-500 text-sm">Managing {jobs.length} listings.</p>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Inventory</h2>
+          <p className="text-slate-500 font-medium">You have {jobs.length} active listings</p>
         </div>
+        
       </div>
 
       <div className="grid gap-4">
         {jobs.length === 0 ? (
-          <div className="text-center p-20 bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-200">
-            <p className="text-gray-400 font-bold">No jobs posted yet.</p>
+          <div className="text-center p-16 bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200">
+            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+              <FaBriefcase className="text-slate-300 text-2xl" />
+            </div>
+            <p className="text-slate-500 font-bold mb-6">No jobs found in your inventory.</p>
+            <button onClick={onAddNew} className="text-indigo-600 font-black uppercase text-xs tracking-widest hover:underline">
+              Create your first post &rarr;
+            </button>
           </div>
         ) : (
           jobs.map((job) => (
             <div key={job.id} 
-              className="group bg-white border border-gray-100 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+              className="group bg-white border border-slate-100 p-5 rounded-[2rem] shadow-sm hover:shadow-xl transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
             >
-              <div className="flex gap-4 items-center flex-1">
-                <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
+              <div className="flex gap-5 items-center flex-1">
+                <div className="w-14 h-14 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center text-xl group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-all shrink-0">
                   <FaBriefcase />
                 </div>
                 
                 <div className="flex-1 cursor-pointer" onClick={() => onSelectJob?.(job)}>
-                  <h3 className="font-bold text-gray-900 text-lg leading-tight group-hover:text-indigo-600 transition-colors">
+                  <h3 className="font-bold text-slate-900 text-lg leading-tight mb-1">
                     {job.title}
                   </h3>
-                  <div className="flex gap-4 mt-2">
-                    <span className="flex items-center gap-1 text-xs text-gray-400 font-medium uppercase tracking-wider">
-                      <FaMapMarkerAlt /> {job.location_type}
+                  <div className="flex items-center gap-4">
+                    <span className="flex items-center gap-1.5 text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                      <FaMapMarkerAlt className="text-indigo-400" /> {job.location_type}
                     </span>
-                    <span className="flex items-center gap-1 text-xs text-indigo-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                      <FaEye /> View Detail & Applicants
+                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0">
+                      <FaEye /> Review Applicants
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <button 
                   onClick={() => toggleJobStatus(job.id, job.status)}
-                  className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full transition-all border ${
+                  className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all border ${
                     job.status === 'open' 
-                      ? 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100' 
-                      : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100' 
+                      : 'bg-slate-100 text-slate-600 border-slate-200'
                   }`}
                 >
                   {job.status === 'open' ? <><FaBolt className="inline mr-1" /> Active</> : <><FaLock className="inline mr-1" /> Closed</>}
                 </button>
                 
-                <div className="flex items-center gap-1 border-l pl-4 border-gray-100">
+                <div className="flex items-center gap-1 bg-slate-50 rounded-2xl p-1">
                   <button 
-                    onClick={() => setEditingJob({...job, requirements: Array.isArray(job.requirements) ? job.requirements.join(', ') : job.requirements})} 
-                    className="p-3 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all"
+                    onClick={() => handleEditInit(job)} 
+                    className="p-3 text-slate-400 hover:text-indigo-600 transition-colors"
                   >
-                    <FaEdit size={18} />
+                    <FaEdit size={16} />
                   </button>
                   <button 
                     onClick={() => handleDeleteInternal(job.id)} 
-                    className={`p-3 rounded-2xl transition-all font-bold text-xs ${
+                    className={`p-3 rounded-xl transition-all font-black text-[10px] uppercase tracking-tighter ${
                       deleteConfirmId === job.id 
-                        ? "bg-rose-600 text-white animate-pulse px-4" 
-                        : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+                        ? "bg-rose-600 text-white px-4" 
+                        : "text-slate-400 hover:text-rose-500"
                     }`}
                   >
-                    {deleteConfirmId === job.id ? "Confirm?" : <FaTrashAlt size={18} />}
+                    {deleteConfirmId === job.id ? "Delete?" : <FaTrashAlt size={16} />}
                   </button>
                 </div>
               </div>
@@ -189,86 +225,87 @@ export default function JobManagement({ onSelectJob }: JobManagementProps) {
         )}
       </div>
 
+      {/* Optimized Modal */}
       {editingJob && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => !actionLoading && setEditingJob(null)} />
-          <div className="bg-white w-full max-w-xl rounded-[32px] shadow-2xl relative z-10 overflow-hidden max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 sticky top-0 bg-white z-10">
-              <h3 className="font-black text-gray-900 text-xl">Update Opportunity</h3>
-              <button onClick={() => setEditingJob(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !actionLoading && setEditingJob(null)} />
+          <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-8 border-b border-slate-50 flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-slate-900 text-2xl tracking-tight">Edit Post</h3>
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Refining Opportunity</p>
+              </div>
+              <button onClick={() => setEditingJob(null)} className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-full transition-all">
                 <FaTimes />
               </button>
             </div>
 
-            <form onSubmit={handleUpdate} className="p-8 space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Job Title</label>
+            <form onSubmit={handleUpdate} className="p-8 space-y-6 overflow-y-auto">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Position Title</label>
                   <input 
                     type="text" 
                     value={editingJob.title}
                     onChange={(e) => setEditingJob({...editingJob, title: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none font-bold focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none font-bold focus:border-indigo-500 focus:bg-white transition-all"
                     required
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Budget Range</label>
-                  <input 
-                    type="text" 
-                    value={editingJob.budget || ''}
-                    onChange={(e) => setEditingJob({...editingJob, budget: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none font-bold focus:ring-2 focus:ring-indigo-500"
-                    placeholder="e.g. $50/hr"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Budget</label>
+                    <input 
+                      type="text" 
+                      value={editingJob.budget || ''}
+                      onChange={(e) => setEditingJob({...editingJob, budget: e.target.value})}
+                      className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none font-bold focus:border-indigo-500 focus:bg-white transition-all"
+                      placeholder="e.g. $5k - $10k"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Work Mode</label>
+                    <select 
+                      value={editingJob.location_type}
+                      onChange={(e) => setEditingJob({...editingJob, location_type: e.target.value})}
+                      className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none font-bold focus:border-indigo-500 focus:bg-white transition-all appearance-none"
+                    >
+                      <option value="remote">Remote</option>
+                      <option value="on-site">On-Site</option>
+                      <option value="hybrid">Hybrid</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Work Mode</label>
-                  <select 
-                    value={editingJob.location_type}
-                    onChange={(e) => setEditingJob({...editingJob, location_type: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none font-bold"
-                  >
-                    <option value="remote">Remote</option>
-                    <option value="on-site">On-Site</option>
-                    <option value="hybrid">Hybrid</option>
-                  </select>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Requirements (comma separated)</label>
-                  <input 
-                    type="text" 
+                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Requirements (Separated by commas)</label>
+                  <textarea 
                     value={editingJob.requirements}
                     onChange={(e) => setEditingJob({...editingJob, requirements: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none font-bold focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none font-bold focus:border-indigo-500 focus:bg-white transition-all min-h-[80px]"
                   />
                 </div>
 
-                <div className="col-span-2">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Description</label>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Full Description</label>
                   <textarea 
                     value={editingJob.description}
                     onChange={(e) => setEditingJob({...editingJob, description: e.target.value})}
-                    rows={4}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none font-bold focus:ring-2 focus:ring-indigo-500"
+                    rows={5}
+                    className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none font-bold focus:border-indigo-500 focus:bg-white transition-all"
                   />
                 </div>
               </div>
 
-              <div className="pt-6 flex gap-3 sticky bottom-0 bg-white">
-                <button type="button" onClick={() => setEditingJob(null)} className="flex-1 py-3.5 font-bold text-gray-400">
-                  Cancel
-                </button>
+              <div className="pt-4 flex gap-4">
                 <button 
                   type="submit" 
                   disabled={actionLoading}
-                  className="flex-1 py-3.5 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"
+                  className="flex-1 py-4 bg-slate-900 text-white font-black uppercase tracking-widest text-xs rounded-2xl shadow-xl shadow-slate-200 flex items-center justify-center gap-3 hover:bg-indigo-600 transition-all disabled:opacity-50"
                 >
                   {actionLoading ? <FaCircleNotch className="animate-spin" /> : <FaSave />}
-                  Save Changes
+                  Update Project
                 </button>
               </div>
             </form>
