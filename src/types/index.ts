@@ -54,3 +54,7 @@ export interface Application {
   title: string;
 }
 
+interface HandshakeInfo {
+  name: string;
+  email: string;
+}

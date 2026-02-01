@@ -10,15 +10,15 @@ interface ProfileCardProps {
   profile: Profile;
   onInvite?: (profile: Profile) => void;
   isInvited?: boolean;
+  handshakeStatus?: 'pending' | 'accepted' | 'declined' | null;
 }
 
-export default function ProfileCard({ profile, onInvite, isInvited }: ProfileCardProps) {
+export default function ProfileCard({ profile, onInvite, isInvited, handshakeStatus }: ProfileCardProps) {
   if (!profile) return null;
 
   const isManager = profile.role === 'MANAGER';
   const firstLetter = profile.full_name?.trim().charAt(0).toUpperCase() || 'U';
 
-  // Senior Tip: Consolidate defensive checks at the top
   const skills = Array.isArray(profile.skills) ? profile.skills : [];
   const languages = Array.isArray((profile as any).languages) ? (profile as any).languages : [];
 
@@ -73,7 +73,6 @@ export default function ProfileCard({ profile, onInvite, isInvited }: ProfileCar
             </span>
           </div>
 
-          {/* Contact & Language Cluster - All professional details in one place */}
           <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1 border-y border-gray-50 py-3">
             {(profile as any).email && (
               <div className="flex items-center gap-1.5 text-gray-500 text-[11px] font-bold">
@@ -85,6 +84,9 @@ export default function ProfileCard({ profile, onInvite, isInvited }: ProfileCar
                 <FaPhone className="text-emerald-400" /> {(profile as any).phone}
               </div>
             )}
+        
+
+
             {languages.length > 0 && (
               <div className="flex items-center gap-1.5 text-gray-500 text-[11px] font-bold">
                 <FaLanguage className="text-amber-400 text-sm" /> 

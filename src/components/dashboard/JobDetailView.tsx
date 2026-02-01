@@ -38,20 +38,49 @@ export default function JobDetailView({
     }
   }, [confirmMode]);
 
-  const handleActionInternal = async () => {
-    if (isClosed || isApplying) return;
-    if (isApplied) {
-      if (confirmMode !== 'WITHDRAW') { setConfirmMode('WITHDRAW'); return; }
-      setIsApplying(true);
-      try { await onApply?.(""); setConfirmMode('NONE'); } finally { setIsApplying(false); }
-      return;
+ /* --- Inside JobDetailView.tsx --- */
+
+// Update the handleActionInternal to be more robust:
+const handleActionInternal = async () => {
+  if (isClosed || isApplying) return;
+
+  // 1. Handling Withdrawal Confirmation
+  if (isApplied) {
+    if (confirmMode !== 'WITHDRAW') { 
+      setConfirmMode('WITHDRAW'); 
+      return; 
     }
-    if (confirmMode !== 'APPLY') { setConfirmMode('APPLY'); return; }
     setIsApplying(true);
-    try {
-      if (onApply) { await onApply(pitch); setConfirmMode('NONE'); }
-    } catch (error) { console.error(error); } finally { setIsApplying(false); }
-  };
+    try { 
+      // This calls the onApply we defined in SeekerView
+      await onApply?.(""); 
+      setConfirmMode('NONE'); 
+    } catch (error) {
+      console.error(error);
+    } finally { 
+      setIsApplying(false); 
+    }
+    return;
+  }
+
+  // 2. Handling Application Confirmation
+  if (confirmMode !== 'APPLY') { 
+    setConfirmMode('APPLY'); 
+    return; 
+  }
+  
+  setIsApplying(true);
+  try {
+    if (onApply) { 
+      await onApply(pitch); 
+      setConfirmMode('NONE'); 
+    }
+  } catch (error) { 
+    console.error(error); 
+  } finally { 
+    setIsApplying(false); 
+  }
+};
 
   return (
     <div className="animate-in fade-in slide-in-from-right duration-300 bg-white min-h-screen relative">

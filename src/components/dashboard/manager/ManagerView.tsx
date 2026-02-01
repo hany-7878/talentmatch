@@ -12,11 +12,10 @@ import PostJobModal from './PostJobModal';
 import toast from 'react-hot-toast';
 import ApplicantSlideOver from './ApplicantSlideOver';
 import { useInvitations } from './useInvitations';
-
 export default function ManagerView({ initialView }: { initialView?: string }) {
-  // 1. ALL STATES AT THE TOP
+  // 1. ALL STATES
   const [viewMode, setViewMode] = useState<string>('pipeline');
-  const [user, setUser] = useState<any>(null); // Moved up
+  const [user, setUser] = useState<any>(null);
   const [applicants, setApplicants] = useState<any[]>([]);
   const [allSeekers, setAllSeekers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,12 +28,16 @@ export default function ManagerView({ initialView }: { initialView?: string }) {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [targetSeeker, setTargetSeeker] = useState<any | null>(null);
   const [myJobs, setMyJobs] = useState<any[]>([]);
+  
+  // NEW: Project-specific scouting state
+  const [scoutingForJobId, setScoutingForJobId] = useState<string>('');
+
   const [newJob, setNewJob] = useState({ 
     title: '', description: '', requirements: '', budget: '', 
     location_type: 'remote', category: 'Engineering', is_priority: false, deadline: '',
   });
 
-  // 2. INITIALIZE HOOK (Must be after states, before functions)
+  // 2. INITIALIZE HOOK
   const { 
     sentInvitations, 
     sendInvitation, 
@@ -43,7 +46,7 @@ export default function ManagerView({ initialView }: { initialView?: string }) {
     fetchInvitations 
   } = useInvitations(user?.id); 
 
-  // 3. DEFINE FETCHDATA (Consolidated single version)
+  // 3. FETCH DATA
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -62,6 +65,15 @@ export default function ManagerView({ initialView }: { initialView?: string }) {
         fetchInvitations()
       ]);
 
+      setAllSeekers(seekersRes.data || []);
+      setMyJobs(jobsRes.data || []);
+      setActiveJobsCount(jobsRes.count || 0);
+      
+      // AUTO-SELECT the first job for the scouting dropdown if none selected
+      if (jobsRes.data && jobsRes.data.length > 0 && !scoutingForJobId) {
+        setScoutingForJobId(jobsRes.data[0].id);
+      }
+
       const formattedApps = appsRes.data?.map((app: any) => ({
         ...app,
         name: app.profiles?.full_name || 'Anonymous',
@@ -70,9 +82,6 @@ export default function ManagerView({ initialView }: { initialView?: string }) {
         project_id: app.project_id 
       })) || [];
 
-      setAllSeekers(seekersRes.data || []);
-      setMyJobs(jobsRes.data || []);
-      setActiveJobsCount(jobsRes.count || 0);
       setApplicants(formattedApps);
     } catch (err: any) {
       toast.error("Sync failed");
@@ -151,6 +160,12 @@ export default function ManagerView({ initialView }: { initialView?: string }) {
       />
     );
   }
+
+  useEffect(() => {
+  if (viewMode === 'discovery' && myJobs.length > 0 && !scoutingForJobId) {
+    setScoutingForJobId(myJobs[0].id);
+  }
+}, [viewMode, myJobs, scoutingForJobId]);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto px-4 pb-20">
@@ -233,29 +248,56 @@ export default function ManagerView({ initialView }: { initialView?: string }) {
 
           {viewMode === 'management' && <JobManagement onSelectJob={setSelectedJob} />}
 
-          {/* DISCOVERY VIEW */}
-          {viewMode === 'discovery' && (
-            <div className="space-y-6">
-              <div className="relative max-w-md">
-                <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input type="text" placeholder="Search skills..." className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-2xl font-bold" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredSeekers.map(s => (
-                  <ProfileCard 
-                    key={s.id} 
-                    profile={s} 
-                    isInvited={sentInvitations.some(inv => inv.seeker_id === s.id)} 
-                    onInvite={(profile) => {
-                      setTargetSeeker(profile);
-                      setIsInviteModalOpen(true);
-                    }} 
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+        {viewMode === 'discovery' && (
+  <div className="space-y-6">
+    <div className="flex flex-col md:flex-row gap-4 items-end">
+      <div className="flex-1 space-y-2">
+        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Scouting For:</label>
+        <select 
+          value={scoutingForJobId} 
+          onChange={(e) => setScoutingForJobId(e.target.value)}
+          className="w-full p-4 bg-white border border-gray-100 rounded-2xl font-bold text-gray-900 focus:ring-2 focus:ring-indigo-600 outline-none shadow-sm"
+        >
+          {myJobs.map(job => (
+            <option key={job.id} value={job.id}>{job.title}</option>
+          ))}
+        </select>
+      </div>
+      
+      <div className="relative flex-[2]">
+        <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input 
+          type="text" 
+          placeholder="Search skills..." 
+          className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-2xl font-bold shadow-sm" 
+          value={searchQuery} 
+          onChange={(e) => setSearchQuery(e.target.value)} 
+        />
+      </div>
+    </div>
 
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {filteredSeekers.map(s => {
+        // FIX: Now we check if invited specifically to the selected job
+        const isInvitedToThisJob = sentInvitations.some(
+          inv => inv.seeker_id === s.id && inv.project_id === scoutingForJobId
+        );
+
+        return (
+          <ProfileCard 
+            key={s.id} 
+            profile={s} 
+            isInvited={isInvitedToThisJob}
+            onInvite={(profile) => {
+              setTargetSeeker(profile);
+              setIsInviteModalOpen(true);
+            }} 
+          />
+        );
+      })}
+    </div>
+  </div>
+)}
           {/* OUTREACH/INVITES VIEW */}
          {/* OUTREACH/INVITES VIEW */}
 {viewMode === 'invites' && (

@@ -71,30 +71,48 @@ export function useSeekerInvitations(seekerId: string | undefined) {
     return () => { supabase.removeChannel(channel); };
   }, [seekerId, fetchMyInvitations]);
 
-  // 3. The Core Action: Accept or Decline
-  const respondToInvitation = async (invitationId: string, status: 'accepted' | 'declined') => {
-    const loadingToast = toast.loading(`Processing your ${status}...`);
+ const respondToInvitation = async (invitationId: string, status: 'accepted' | 'declined') => {
+  const loadingToast = toast.loading(`Confirming ${status}...`);
 
-    try {
-      const { error } = await supabase
-        .from('invitations')
-        .update({ status })
-        .eq('id', invitationId);
+  try {
+    // 1. Find the invitation details first (we need project_id)
+    const invitation = invitations.find(i => i.id === invitationId);
+    if (!invitation) throw new Error("Invitation not found");
 
-      if (error) throw error;
+    // 2. Update the invitation status
+    const { error: inviteError } = await supabase
+      .from('invitations')
+      .update({ status })
+      .eq('id', invitationId);
 
-      // Optimistic Update: Update local state immediately for a fast UI feel
-      setInvitations(prev => 
-        prev.map(inv => inv.id === invitationId ? { ...inv, status } : inv)
-      );
+    if (inviteError) throw inviteError;
 
-      toast.success(status === 'accepted' ? 'Invitation Accepted!' : 'Declined', { id: loadingToast });
-      return true;
-    } catch (err) {
-      toast.error("Failed to update status", { id: loadingToast });
-      return false;
+    // 3. IF ACCEPTED: Automatically insert into applications table
+    if (status === 'accepted') {
+      const { error: appError } = await supabase
+        .from('applications')
+        .upsert({
+          project_id: invitation.project_id,
+          user_id: seekerId,
+          status: 'pending', // Or 'shortlisted' since they were invited
+          pitch: "Accepted invitation from manager."
+        }, { onConflict: 'project_id,user_id' });
+
+      if (appError) console.error("Auto-app creation failed:", appError);
     }
-  };
+
+    // 4. Update UI locally
+    setInvitations(prev => 
+      prev.map(inv => inv.id === invitationId ? { ...inv, status } : inv)
+    );
+
+    toast.success(status === 'accepted' ? 'Partnership Confirmed!' : 'Declined', { id: loadingToast });
+    return true;
+  } catch (err: any) {
+    toast.error(err.message || "Action failed", { id: loadingToast });
+    return false;
+  }
+};
 
   return {
     invitations,

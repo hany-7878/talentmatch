@@ -2,28 +2,17 @@ import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../../../lib/supabaseClient';
 import toast from 'react-hot-toast';
 
-// 1. WHY: Interfaces provide "Autocomplete" and catch errors before you save
-interface Seeker {
-  id: string;
-  full_name: string;
-  avatar_url?: string;
-}
-
+interface Seeker { id: string; full_name: string; avatar_url?: string; }
 interface Invitation {
-  id: string;
-  project_id: string;
-  seeker_id: string;
+  id: string; project_id: string; seeker_id: string; manager_id?: string;
   status: 'pending' | 'accepted' | 'declined';
-  created_at: string;
-  profiles?: any;
-  projects?: any;
+  created_at: string; profiles?: any; projects?: any;
 }
 
 export function useInvitations(managerId: string | undefined) {
   const [sentInvitations, setSentInvitations] = useState<Invitation[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 2. WHY: useCallback prevents the "Infinite Loop" crash in useEffect
   const fetchInvitations = useCallback(async () => {
     if (!managerId) return;
     
@@ -34,13 +23,12 @@ export function useInvitations(managerId: string | undefined) {
         profiles:seeker_id (id, full_name, email, avatar_url), 
         projects:project_id!inner (id, title, manager_id)
       `)
-      .eq('projects.manager_id', managerId)
+      .eq('manager_id', managerId) 
       .order('created_at', { ascending: false });
     
     if (!error) setSentInvitations(data || []);
   }, [managerId]);
 
-  // 3. WHY: Real-time keeps the manager's screen "live"
   useEffect(() => {
     if (!managerId) return;
 
@@ -49,7 +37,8 @@ export function useInvitations(managerId: string | undefined) {
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
-        table: 'invitations' 
+        table: 'invitations',
+        filter: `manager_id=eq.${managerId}` // Only listen to YOUR invites
       }, () => {
         fetchInvitations();
       })
@@ -58,31 +47,54 @@ export function useInvitations(managerId: string | undefined) {
     return () => { supabase.removeChannel(channel); };
   }, [managerId, fetchInvitations]);
 
-  const sendInvitation = async (jobId: string, seeker: Seeker) => {
-    setIsSubmitting(true);
-    // WHY: In .tsx, you could return a <div> here for the toast if you wanted!
-    const loadingToast = toast.loading(`Sending pitch to ${seeker.full_name}...`);
+ const sendInvitation = async (jobId: string, seeker: Seeker) => {
+  // Use a fresh check of the session to ensure managerId isn't stale
+  const { data: { session } } = await supabase.auth.getSession();
+  const currentUserId = session?.user?.id || managerId;
 
-    try {
-      const { data, error } = await supabase
-        .from('invitations')
-        .insert([{ project_id: jobId, seeker_id: seeker.id, status: 'pending' }])
-        .select(`*, profiles:seeker_id (*), projects:project_id (*)`)
-        .single();
+  if (!currentUserId) {
+    toast.error("Session expired. Please refresh.");
+    return false;
+  }
 
-      if (error) throw error;
+  setIsSubmitting(true);
+  const loadingToast = toast.loading(`Pitching ${seeker.full_name}...`);
 
-      setSentInvitations(prev => [data, ...prev]);
-      toast.success('Invitation Live!', { id: loadingToast });
-      return true;
-    } catch (err: any) {
-      const msg = err.code === '23505' ? "Already invited" : "Transmission failed";
-      toast.error(msg, { id: loadingToast });
-      return false;
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  try {
+    const { data, error } = await supabase
+      .from('invitations')
+      .upsert(
+        { 
+          project_id: jobId, 
+          seeker_id: seeker.id, 
+          manager_id: currentUserId, // Use the verified ID
+          status: 'pending' 
+        }, 
+        { onConflict: 'project_id,seeker_id' }
+      )
+      .select(`*, profiles:seeker_id (*), projects:project_id (*)`)
+      .single();
+
+    if (error) throw error;
+
+
+    setSentInvitations(prev => {
+      const filtered = prev.filter(inv => 
+        !(inv.project_id === jobId && inv.seeker_id === seeker.id)
+      );
+      return [data, ...filtered];
+    });
+
+    toast.success('Invitation Live!', { id: loadingToast });
+    return true;
+  } catch (err: any) {
+    console.error("Full Error:", err); // Look at your console for the real reason
+    toast.error(err.message || "Transmission failed", { id: loadingToast });
+    return false;
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const withdrawInvitation = async (invitationId: string) => {
     try {
