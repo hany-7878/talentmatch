@@ -1,4 +1,4 @@
-import { useSeekerInvitations } from './useSeekerInvitations';
+import { useSeekerInvitations } from '../../../hooks/useSeekerInvitations';
 import { useAuth } from '../../../context/AuthContext';
 import { FaCheck, FaTimes, FaInbox, FaUserCircle } from 'react-icons/fa';
 import { useState } from 'react';

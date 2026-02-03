@@ -235,27 +235,29 @@ const handleAcceptInvitation = async (projectId: string) => {
   const loadingToast = toast.loading("Confirming partnership...");
 
   try {
-    // Inside handleAcceptInvitation
-const { data, error } = await supabase
-  .from('invitations')
-  .update({ status: 'accepted' })
-  .eq('project_id', projectId)
-  .eq('seeker_id', profile.id)
-  .select(`
-    project_id,
-    projects:project_id (
-      title,
-      profiles:projects_manager_id_fkey ( 
-        full_name, 
-        email
-      )
-    )
-  `)
-  .single();
+    // 1. UPDATE THE INVITATION & GET MANAGER INFO
+    const { data, error } = await supabase
+      .from('invitations')
+      .update({ status: 'accepted' })
+      .eq('project_id', projectId)
+      .eq('seeker_id', profile.id)
+      .select(`
+        project_id,
+        projects:project_id (
+          id,
+          title,
+          manager_id,
+          profiles:projects_manager_id_fkey ( 
+            full_name, 
+            email
+          )
+        )
+      `)
+      .single();
 
     if (error) throw error;
 
-   
+    // 2. AUTO-CREATE THE APPLICATION (The "Contract" start)
     await supabase.from('applications').upsert({
       project_id: projectId,
       user_id: profile.id,
@@ -263,7 +265,19 @@ const { data, error } = await supabase
       pitch: "Accepted direct invitation from manager."
     }, { onConflict: 'project_id,user_id' });
 
-    // 3. OPTIMISTIC UI UPDATE
+    // 3. NEW: TRIGGER THE NOTIFICATION (The "Upwork" alert)
+    const managerId = data.projects?.manager_id;
+    if (managerId) {
+      await supabase.from('notifications').insert({
+        user_id: managerId, // Send to the Manager
+        title: "Invitation Accepted! 🎉",
+        message: `${profile.full_name || 'A seeker'} has accepted your invite for ${data.projects.title}.`,
+        type: 'invitation_accepted',
+        link: `/manager/projects/${projectId}` // Adjust based on your routes
+      });
+    }
+
+    // 4. OPTIMISTIC UI UPDATE
     setMyInvitations(prev => 
       prev.map(inv => inv.project_id === projectId ? { ...inv, status: 'accepted' } : inv)
     );

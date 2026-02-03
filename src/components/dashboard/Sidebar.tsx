@@ -1,6 +1,6 @@
-import { 
+ import { 
   FaThLarge, FaBriefcase, FaUsers,   
-  FaCog, FaBars, FaTimes, FaUserCircle, FaRocket, FaPaperPlane
+  FaCog, FaBars, FaTimes, FaUserCircle, FaRocket, FaPaperPlane, FaComments
 } from 'react-icons/fa';
 import { useState, useMemo } from 'react';
 
@@ -9,31 +9,58 @@ interface SidebarProps {
   activeTab: string; 
   onTabChange: (tab: string) => void;
   applicationCount?: number;
+  messageCount?: number;
 }
 
-export default function Sidebar({ role, activeTab, onTabChange, applicationCount = 0 }: SidebarProps) {
+export default function Sidebar({ 
+  role, 
+  activeTab, 
+  onTabChange, 
+  applicationCount = 0,
+  messageCount = 0 
+}: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Memoize links so they don't re-calculate unless role or counts change
   const links = useMemo(() => {
+    // Senior Logic: Helper to format badges so they don't break UI layout
+    const formatBadge = (count: number) => (count > 99 ? '99+' : count);
+
+    const messageLink = { 
+      name: 'Messages', 
+      icon: <FaComments />, 
+      tab: 'messages',
+      badge: messageCount > 0 ? formatBadge(messageCount) : null,
+      isAlert: messageCount > 0 
+    };
+
     if (role === 'manager') {
       return [
         { name: 'Dashboard', icon: <FaThLarge />, tab: 'pipeline' },
         { name: 'Active Projects', icon: <FaBriefcase />, tab: 'management' },
-        { name: 'Talent Pool', icon: <FaUsers />, tab: 'discovery' },
-        { name: 'Outreach', icon: <FaPaperPlane />, tab: 'invites' }, // Synced with ManagerView
+        { 
+          name: 'Applicants', // Changed label for manager side
+          icon: <FaUsers />, 
+          tab: 'discovery',
+          badge: applicationCount > 0 ? formatBadge(applicationCount) : null,
+          isAlert: false 
+        },
+        { name: 'Outreach', icon: <FaPaperPlane />, tab: 'invites' }, 
+        messageLink,
       ];
     }
+    
     return [
       { name: 'Explore Jobs', icon: <FaThLarge />, tab: 'discovery' }, 
       { 
-        name: 'My Applications', 
+        name: 'Applications', 
         icon: <FaRocket />, 
         tab: 'applications',
-        badge: applicationCount > 0 ? applicationCount : null 
+        badge: applicationCount > 0 ? formatBadge(applicationCount) : null,
+        isAlert: false
       },
+      messageLink,
     ];
-  }, [role, applicationCount]);
+  }, [role, applicationCount, messageCount]);
 
   const handleTabClick = (tab: string) => {
     onTabChange(tab);
@@ -42,11 +69,11 @@ export default function Sidebar({ role, activeTab, onTabChange, applicationCount
 
   return (
     <>
-      {/* Mobile Toggle Trigger - Improved Visibility Logic */}
+      {/* Mobile Toggle Trigger */}
       <button 
         title='Open Menu'
         onClick={() => setIsOpen(true)}
-        className={`lg:hidden fixed top-6 left-6 z-[60] p-3 bg-indigo-600 text-white rounded-2xl shadow-xl transition-all ${
+        className={`lg:hidden fixed top-6 left-6 z-[60] p-3 bg-indigo-600 text-white rounded-2xl shadow-xl transition-all active:scale-90 ${
           isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
       >
@@ -80,14 +107,14 @@ export default function Sidebar({ role, activeTab, onTabChange, applicationCount
                 <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">{role}</span>
               </div>
             </div>
-            <button title='open' onClick={() => setIsOpen(false)} className="lg:hidden text-slate-500 hover:text-white p-2">
+            <button title='close' onClick={() => setIsOpen(false)} className="lg:hidden text-slate-500 hover:text-white p-2">
               <FaTimes size={18} />
             </button>
           </div>
         </div>
         
         {/* Main Navigation */}
-        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto mt-4">
+        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto mt-4 custom-scrollbar">
           <p className="text-[10px] uppercase tracking-widest text-slate-600 font-black mb-4 px-4">Workspace</p>
           
           {links.map((link) => (
@@ -111,15 +138,21 @@ export default function Sidebar({ role, activeTab, onTabChange, applicationCount
               </div>
 
               {link.badge && (
-                <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg">
-                  {link.badge}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`
+                    bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg min-w-[20px] text-center
+                    ring-2 ring-slate-950 shadow-lg
+                    ${link.isAlert ? 'animate-pulse' : ''}
+                  `}>
+                    {link.badge}
+                  </span>
+                </div>
               )}
             </button>
           ))}
         </nav>
 
-        {/* User Footer Section */}
+        {/* User Footer */}
         <div className="p-4 bg-slate-950/50 border-t border-slate-800/50">
           <button 
             onClick={() => handleTabClick('profile')}

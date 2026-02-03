@@ -1,173 +1,190 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef, useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabaseClient';
-import ManagerView from '../components/dashboard/manager/ManagerView';
-import SeekerView from '../components/dashboard/seeker/SeekerView';
-import SeekerApplications from '../components/dashboard/seeker/SeekerApplications'; // Added this import
+import { useNotifications } from '../hooks/useNotifications';
+import { useDashboardTabs, DASHBOARD_TABS } from '../hooks/useDashboardTabs';
+
 import Sidebar from '../components/dashboard/Sidebar';
-import ProfileSettings from '../components/dashboard/ProfileSettings';
-import GeneralSettings from '../components/dashboard/GeneralSettings';
-import { FaSignOutAlt, FaSync } from 'react-icons/fa';
+import { LoadingState, FinalizingState } from './DashboardStates';
+import { FaArrowUp, FaBars } from 'react-icons/fa';
+
+// Lazy Loaded Views
+const ManagerView = lazy(() => import('../components/dashboard/manager/ManagerView'));
+const SeekerView = lazy(() => import('../components/dashboard/seeker/SeekerView'));
+const MessagingView = lazy(() => import('../components/dashboard/MessagingView'));
+const ProfileSettings = lazy(() => import('../components/dashboard/ProfileSettings'));
+const GeneralSettings = lazy(() => import('../components/dashboard/GeneralSettings'));
+const SeekerApplications = lazy(() => import('../components/dashboard/seeker/SeekerApplications'));
+
+const TAB_LABELS: Record<string, string> = {
+  [DASHBOARD_TABS.PIPELINE]: 'Manager Hub',
+  [DASHBOARD_TABS.DISCOVERY]: 'Marketplace',
+  [DASHBOARD_TABS.MESSAGES]: 'Messages',
+  [DASHBOARD_TABS.PROFILE]: 'Profile Settings',
+  [DASHBOARD_TABS.SETTINGS]: 'General Settings',
+  [DASHBOARD_TABS.APPLICATIONS]: 'My Applications',
+  // Management and Invites usually share the Manager Hub header or have their own
+  management: 'Project Management',
+  invites: 'Outreach & Invites'
+};
 
 export default function Dashboard() {
   const { profile, logout, isLoading, user, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const currentRole = profile?.role?.toLowerCase() === 'manager' ? 'manager' : 'seeker';
   
-  const [activeTab, setActiveTab] = useState<string>('pipeline'); 
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [appCount, setAppCount] = useState(0);
+  const { activeTab, setActiveTab } = useDashboardTabs(profile?.role);
+  const notifs = useNotifications(user?.id || '', currentRole);
 
-  // Memoized fetch function so it can be passed down if needed
-  const fetchAppCount = useCallback(async () => {
-    if (user && profile?.role === 'SEEKER') {
-      const { count, error } = await supabase
-        .from('applications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
-      
-      if (!error) setAppCount(count || 0);
-    }
-  }, [user, profile]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
+  /* ================= PERFORMANCE: DEBOUNCED SCROLL ================= */
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    window.requestAnimationFrame(() => {
+      setShowScrollTop(scrollTop > 400);
+    });
+  }, []);
+
+  /* ================= AUTH & NOTIFS ================= */
   useEffect(() => {
-    fetchAppCount();
-  }, [fetchAppCount]);
-
-  useEffect(() => {
-    if (!isLoading && !user) {
-      navigate('/auth', { replace: true });
-    }
+    if (!isLoading && !user) navigate('/auth', { replace: true });
   }, [user, isLoading, navigate]);
 
-  // Default redirect for Seekers
+  // Clean up notifications when viewing messages
   useEffect(() => {
-    if (profile && activeTab === 'pipeline' && profile.role === 'SEEKER') {
-      setActiveTab('discovery');
+    if (activeTab === DASHBOARD_TABS.MESSAGES && notifs.messages > 0) {
+      notifs.markMessagesRead?.();
     }
-  }, [profile, activeTab]);
+  }, [activeTab, notifs.messages, notifs.markMessagesRead]);
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/auth', { replace: true });
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-  };
+  const handleMessageRedirect = useCallback((projectId: string) => {
+    // setActiveTab updates URL via hook logic
+    setActiveTab(DASHBOARD_TABS.MESSAGES);
+    // Use navigate to append the specific projectId param
+    navigate(`?tab=${DASHBOARD_TABS.MESSAGES}&projectId=${projectId}`);
+  }, [navigate, setActiveTab]);
 
-  const handleManualRefresh = async () => {
-    if (!user) return;
-    setIsSyncing(true);
-    await refreshProfile(); 
-    setIsSyncing(false);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-indigo-600 font-medium">Loading Workspace...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (user && !profile) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50 text-center">
-        <div className="max-w-sm p-6 bg-white rounded-2xl shadow-xl border border-gray-100 mx-auto">
-          <div className={`w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4 ${isSyncing ? 'animate-spin' : ''}`}></div>
-          <h3 className="text-lg font-bold text-gray-900 mb-2">Finalizing Profile</h3>
-          <button 
-            onClick={handleManualRefresh}
-            className="flex items-center justify-center gap-2 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold"
-          >
-            <FaSync className={isSyncing ? 'animate-spin' : ''} />
-            {isSyncing ? 'Checking...' : 'Refresh Status'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+  if (isLoading) return <LoadingState />;
+  if (user && !profile) return <FinalizingState onRefresh={refreshProfile} />;
   if (!profile) return null;
 
-  const currentRole = (profile.role || 'seeker').toLowerCase() === 'manager' ? 'manager' : 'seeker';
-  const firstLetter = (profile.full_name?.[0] || user?.email?.[0] || 'U').toUpperCase();
-
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <Sidebar 
-        role={currentRole} 
-        activeTab={activeTab} 
-        onTabChange={setActiveTab} 
-        applicationCount={appCount} 
-      />
+    <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
       
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
-        <header className="bg-white border-b border-gray-200 px-4 sm:px-8 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
-          <div className="truncate pr-4">
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
-              {activeTab === 'profile' ? 'Account Settings' : 
-               activeTab === 'settings' ? 'General Settings' : 
-               activeTab === 'applications' ? 'My Applications' :
-               (currentRole === 'manager' ? 'Hiring Control Center' : 'Job Marketplace')}
-            </h1>
-            <div className="flex items-center gap-2">
-               <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded uppercase tracking-wider">
-                 {currentRole}
-               </span>
-               <span className="text-[10px] text-gray-500 truncate max-w-[150px] font-medium">{user?.email}</span>
+      {/* SIDEBAR NAVIGATION */}
+      <Sidebar
+        role={currentRole}
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab as any);
+          setIsSidebarOpen(false);
+        }}
+        applicationCount={currentRole === 'manager' ? notifs.applications : notifs.invitations}
+        messageCount={notifs.messages}
+      />
+
+      <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative h-full">
+        {/* HEADER */}
+        <header className="h-20 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 px-4 sm:px-8 flex justify-between items-center sticky top-0 z-40">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsSidebarOpen(true)} 
+              className="p-2.5 lg:hidden rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 transition-all active:scale-95"
+            >
+              <FaBars size={20} />
+            </button>
+            <div className="flex flex-col">
+              <h1 className="text-lg font-black text-slate-900 tracking-tight uppercase leading-none">
+                {TAB_LABELS[activeTab] || 'Dashboard'}
+              </h1>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                {currentRole} Access
+              </span>
             </div>
           </div>
-          
-          <div className="flex items-center gap-3 sm:gap-5 shrink-0">
-            <div className="text-right hidden md:block">
-              <p className="text-sm font-bold text-gray-800 leading-none">{profile.full_name || 'User'}</p>
-              <button onClick={handleLogout} className="text-[11px] text-red-500 hover:text-red-700 font-bold uppercase flex items-center gap-1 ml-auto mt-1">
-                Sign Out <FaSignOutAlt size={10} />
+
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:flex flex-col items-end">
+              <p className="text-xs font-black text-slate-900 leading-none mb-1">{profile.full_name}</p>
+              <button 
+                onClick={logout} 
+                className="text-[9px] text-slate-400 font-black uppercase hover:text-red-500 transition-colors tracking-[0.2em]"
+              >
+                Sign Out
               </button>
             </div>
             
             <button 
-              onClick={() => setActiveTab('profile')}
-              className={`relative w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden shadow-md transition-all ${
-                activeTab === 'profile' ? 'ring-2 ring-indigo-500 ring-offset-2' : ''
-              }`}
+              onClick={() => setActiveTab(DASHBOARD_TABS.PROFILE)} 
+              className="relative group w-11 h-11 rounded-2xl ring-2 ring-slate-100 shadow-sm overflow-hidden hover:ring-indigo-500 transition-all active:scale-95"
             >
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-lg bg-gradient-to-tr from-blue-600 to-indigo-500">
-                  {firstLetter}
-                </div>
-              )}
+              <img 
+                src={profile.avatar_url || `https://ui-avatars.com/api/?name=${profile.full_name}&background=6366f1&color=fff`} 
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                alt="Profile" 
+              />
             </button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-gray-50">
-          <div className="max-w-7xl mx-auto">
-            {/* Logic to switch between Profile, Settings, and Role-based Views */}
-            {activeTab === 'profile' ? (
-              <ProfileSettings />
-            ) : activeTab === 'settings' ? (
-              <GeneralSettings />
-            ) : (
-              currentRole === 'manager' ? (
-                <ManagerView initialView={activeTab as any} /> 
-              ) : (
-                /* Seeker Sub-views */
-                activeTab === 'applications' ? (
-                  <SeekerApplications />
-                ) : (
-                  <SeekerView onApplicationSent={fetchAppCount} />
-                )
-              )
-            )}
-          </div>
+        {/* VIEWPORT CONTENT */}
+        <div className="flex-1 relative overflow-hidden bg-slate-50/50">
+          <Suspense fallback={<LoadingState />}>
+            <div 
+               ref={scrollRef} 
+               onScroll={handleScroll} 
+               className="h-full overflow-y-auto scroll-smooth custom-scrollbar"
+            >
+              <div className="p-4 sm:p-8 max-w-[1600px] mx-auto min-h-full">
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
+                  
+                  {/* SHARED VIEWS */}
+                  {activeTab === DASHBOARD_TABS.MESSAGES && <MessagingView />}
+                  {activeTab === DASHBOARD_TABS.PROFILE && <ProfileSettings />}
+                  {activeTab === DASHBOARD_TABS.SETTINGS && <GeneralSettings />}
+                  
+                  {/* MANAGER ROUTING: Handles Pipeline, Management, Discovery (Applicants), and Invites */}
+                  {currentRole === 'manager' && [
+                    DASHBOARD_TABS.PIPELINE, 
+                    DASHBOARD_TABS.DISCOVERY, 
+                    'management', 
+                    'invites'
+                  ].includes(activeTab) && (
+                    <ManagerView 
+                      initialView={activeTab} 
+                      onNavigateToMessages={handleMessageRedirect} 
+                      onTabChange={setActiveTab} 
+                    />
+                  )}
+                  
+                  {/* SEEKER ROUTING */}
+                  {currentRole === 'seeker' && (
+                    <>
+                      {activeTab === DASHBOARD_TABS.DISCOVERY && (
+                        <SeekerView onApplicationSent={() => notifs.refresh()} />
+                      )}
+                      {activeTab === DASHBOARD_TABS.APPLICATIONS && (
+                        <SeekerApplications />
+                      )}
+                    </>
+                  )}
+
+                </div>
+              </div>
+
+              {showScrollTop && (
+                <button
+                  onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="fixed bottom-10 right-10 p-4 bg-slate-900 text-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:bg-indigo-600 transition-all z-50 animate-in zoom-in spin-in-90 duration-300 active:scale-90"
+                >
+                  <FaArrowUp size={14} />
+                </button>
+              )}
+            </div>
+          </Suspense>
         </div>
       </main>
     </div>

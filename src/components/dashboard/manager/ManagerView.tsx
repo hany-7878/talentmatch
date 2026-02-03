@@ -12,7 +12,9 @@ import PostJobModal from './PostJobModal';
 import toast from 'react-hot-toast';
 import ApplicantSlideOver from './ApplicantSlideOver';
 import { useInvitations } from './useInvitations';
-export default function ManagerView({ initialView }: { initialView?: string }) {
+export default function ManagerView({ initialView, onNavigateToMessages }: { initialView?: string;
+  onNavigateToMessages: (projectId: string) => void;
+}) {
   // 1. ALL STATES
   const [viewMode, setViewMode] = useState<string>('pipeline');
   const [user, setUser] = useState<any>(null);
@@ -100,17 +102,38 @@ export default function ManagerView({ initialView }: { initialView?: string }) {
   }, [fetchData]);
 
   // 5. HELPER FUNCTIONS
-  const updateAppStatus = async (id: string, newStatus: string) => {
-    try {
-      const { error } = await supabase.from('applications').update({ status: newStatus }).eq('id', id);
-      if (error) throw error;
-      setApplicants(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
-      setSelectedApplicant((prev: any) => prev?.id === id ? { ...prev, status: newStatus } : prev);
-      toast.success(newStatus === 'interviewing' ? 'Shortlisted!' : 'Status Updated');
-    } catch (err: any) {
-      toast.error("Update failed");
+const updateAppStatus = async (appId: string, newStatus: string) => {
+  try {
+    const { error: appError } = await supabase
+      .from('applications')
+      .update({ status: newStatus })
+      .eq('id', appId);
+
+    if (appError) throw appError;
+
+    // Bridge Logic: When moving to 'interviewing', we open the chat channel
+    if (newStatus === 'interviewing') {
+      const app = applicants.find(a => a.id === appId);
+      
+      // Upsert an 'accepted' invitation to unlock the MessagingView
+      const { error: handshakeError } = await supabase
+        .from('invitations')
+        .upsert({
+          project_id: app.project_id,
+          seeker_id: app.profiles.id,
+          manager_id: user.id, 
+          status: 'accepted' // 'accepted' makes it visible in the chat list
+        }, { onConflict: 'project_id, seeker_id' });
+
+      if (handshakeError) throw handshakeError;
+      toast.success('Channel Opened! You can now message this candidate.');
     }
-  };
+
+    setApplicants(prev => prev.map(a => a.id === appId ? { ...a, status: newStatus } : a));
+  } catch (err) {
+    toast.error("Could not bridge to chat");
+  }
+};
 
   const handlePostJob = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,8 +202,11 @@ export default function ManagerView({ initialView }: { initialView?: string }) {
                 className={`text-xs font-black uppercase tracking-widest pb-2 transition-all border-b-4 ${viewMode === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-300 hover:text-gray-500'}`}>
                 {tab === 'pipeline' ? 'Overview' : tab === 'management' ? 'Job Inventory' : tab === 'discovery' ? 'Talent Pool' : 'Outreach'}
               </button>
+
+              
             ))}
           </div>
+          
         </div>
         <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-2xl hover:bg-indigo-600 transition-all font-bold shadow-2xl">
           <FaPlus /> <span>Post Opportunity</span>
@@ -216,30 +242,44 @@ export default function ManagerView({ initialView }: { initialView?: string }) {
                         <th className="px-8 py-5 text-right">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {applicants.length === 0 ? (
-                        <tr><td colSpan={3} className="px-8 py-10 text-center text-gray-400 italic">No applications.</td></tr>
-                      ) : (
-                        applicants.map(app => (
-                          <tr key={app.id} className="hover:bg-indigo-50/30 transition-all group">
-                            <td className="px-8 py-5 cursor-pointer" onClick={() => setSelectedApplicant(app)}>
-                              <div className="font-bold text-gray-800">{app.name}</div>
-                              <div className="text-[10px] text-gray-400 uppercase">{app.role}</div>
-                            </td>
-                            <td className="px-8 py-5 text-center">
-                              <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase ${app.match > 80 ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
-                                {app.match}% Match
-                              </span>
-                            </td>
-                            <td className="px-8 py-5 text-right">
-                              <button onClick={() => setSelectedApplicant(app)} className="p-3 bg-gray-50 text-gray-400 rounded-xl hover:bg-indigo-600 hover:text-white transition-all">
-                                <FaExternalLinkAlt size={14} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
+<tbody className="divide-y divide-gray-50">
+  {applicants.map(app => (
+    <tr key={app.id} className="hover:bg-indigo-50/30 transition-all group">
+      <td className="px-8 py-5 cursor-pointer" onClick={() => setSelectedApplicant(app)}>
+        <div className="font-bold text-gray-800">{app.name}</div>
+        <div className="text-[10px] text-gray-400 uppercase">{app.role}</div>
+      </td>
+      
+      <td className="px-8 py-5 text-center">
+        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase ${app.match > 80 ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+          {app.match}% Match
+        </span>
+      </td>
+
+      {/* CORRECTED ACTION CELL */}
+      <td className="px-8 py-5 text-right flex gap-2 justify-end">
+        {/* Only show chat if the status is interviewing (meaning the handshake happened) */}
+        {app.status === 'interviewing' && (
+    <button 
+    onClick={() => onNavigateToMessages(app.project_id)} // CHANGED inv to app
+    className="p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
+    title="Open Chat"
+  >
+    <FaPaperPlane size={14} />
+    <span className="text-[10px] font-bold uppercase">Chat</span>
+  </button>
+)}
+        
+        <button 
+          onClick={() => setSelectedApplicant(app)} 
+          className="p-3 bg-gray-50 text-gray-400 rounded-xl hover:bg-indigo-600 hover:text-white transition-all"
+        >
+          <FaExternalLinkAlt size={14} />
+        </button>
+      </td>
+    </tr>
+  ))}
+</tbody>
                   </table>
                 </div>
               </div>
@@ -343,15 +383,26 @@ export default function ManagerView({ initialView }: { initialView?: string }) {
                     {inv.status}
                   </span>
                 </td>
-                <td className="px-8 py-5 text-right">
-                  <button 
-                    onClick={() => withdrawInvitation(inv.id)} 
-                    className="p-3 bg-white text-gray-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm border border-transparent hover:border-rose-100 group-hover:scale-110"
-                    title="Withdraw Invitation"
-                  >
-                    <FaTimes size={14} />
-                  </button>
-                </td>
+              <td className="px-8 py-5 text-right flex gap-3 justify-end">
+  {/* Show chat button unless the invitation was declined */}
+  {inv.status !== 'declined' && (
+    <button 
+    onClick={() => onNavigateToMessages(inv.project_id)} // USE THE PROP
+    className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
+  >
+    <FaPaperPlane size={12} />
+    <span className="text-[10px] font-bold uppercase">Chat</span>
+  </button>
+  )}
+
+  <button 
+    onClick={() => withdrawInvitation(inv.id)} 
+    className="p-3 bg-white text-gray-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm border border-transparent hover:border-rose-100"
+    title="Withdraw"
+  >
+    <FaTimes size={14} />
+  </button>
+</td>
               </tr>
             ))
           )}
@@ -432,6 +483,7 @@ export default function ManagerView({ initialView }: { initialView?: string }) {
     </div>
   );
 }
+
 
 function StatCard({ label, value, icon, color }: any) {
   return (
