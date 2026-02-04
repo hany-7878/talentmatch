@@ -2,9 +2,10 @@
 import { supabase } from '../../../lib/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
 import type { JobProject } from '../../../types'; 
-import { FaSearch, FaTimes, FaBookmark, FaRegBookmark } from 'react-icons/fa'; 
-import JobDetailView from '../JobDetailView'; 
+import { FaSearch, FaTimes, FaBookmark, FaRegBookmark, FaPaperPlane } from 'react-icons/fa'; 
+import JobDetailView from '../Common/JobDetailView'; 
 import { toast } from 'react-hot-toast';
+
 
 const JOBS_PER_PAGE = 6; 
 
@@ -14,10 +15,12 @@ interface HandshakeInfo {
 }
 
 interface SeekerViewProps {
-  onApplicationSent?: () => void; 
+  onApplicationSent?: () => void;
+  onNavigateToMessages: (projectId: string, recipientId: string) => void;
 }
 
-export default function SeekerView({ onApplicationSent }: SeekerViewProps) {
+
+export default function SeekerView({ onApplicationSent, onNavigateToMessages }: SeekerViewProps) {
   // --- 1. CORE STATE ---
   const { profile } = useAuth();
   const [availableJobs, setAvailableJobs] = useState<JobProject[]>([]);
@@ -32,6 +35,8 @@ export default function SeekerView({ onApplicationSent }: SeekerViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedJob, setSelectedJob] = useState<JobProject | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'applied' | 'invites' | 'saved' | 'connections'>('all');
+
+
 
   
   // --- 3. PAGINATION & SAVES ---
@@ -58,15 +63,27 @@ export default function SeekerView({ onApplicationSent }: SeekerViewProps) {
     return `${Math.floor(seconds / 86400)}d ago`;
   };
 
-  const getMatchScore = useCallback((jobRequirements: string[] = []) => {
-    if (!profile?.skills || !jobRequirements.length) return 0;
-    const userSkills = Array.isArray(profile.skills) ? profile.skills.map(s => s.toLowerCase()) : [];
-    const matches = jobRequirements.filter(req => userSkills.includes(req.toLowerCase()));
-    return Math.round((matches.length / jobRequirements.length) * 100);
-  }, [profile?.skills]);
+  const getMatchScore = useCallback((job: JobProject) => {
+  if (!profile?.skills || !Array.isArray(profile.skills)) return 0;
+  
+  const userSkills = profile.skills.map(s => s.toLowerCase());
+  const jobText = `${job.title} ${job.description} ${job.requirements?.join(' ')}`.toLowerCase();
+  
+  // 1. Calculate how many user skills are mentioned in the job post
+  const matchedSkills = userSkills.filter(skill => jobText.includes(skill));
+  
+  if (userSkills.length === 0) return 0;
 
- // --- 6. DATA FETCHING (Senior Optimized) ---
-// --- 6. DATA FETCHING (Corrected for Range Errors) ---
+  // 2. Base score: percentage of user's skills that match this job
+  let score = (matchedSkills.length / userSkills.length) * 100;
+
+  
+  const titleMatches = userSkills.filter(skill => job.title.toLowerCase().includes(skill));
+  score += (titleMatches.length * 15); 
+  return Math.min(Math.round(score), 98);
+}, [profile?.skills]);
+
+ 
 const fetchDashboardData = useCallback(async (isInitial = true) => {
 
   // Prevent double calls
@@ -104,20 +121,6 @@ const [jobsRes, appsRes, invitesRes] = await Promise.all([
 
   supabase
     .from('invitations')
-    .select(`
-      project_id, 
-      status,
-      projects (
-        id,
-        title,
-        manager_id,
-        profiles:manager_id (
-          full_name, 
-          email
-        )
-      )
-    `)
-
     .select(`
       project_id, 
       status,
@@ -209,7 +212,7 @@ if (activeTab === 'connections') {
     if (activeTab === 'applied') {
       jobs = jobs.filter(j => myApplications.some(a => a.project_id === j.id));
     } else if (activeTab === 'invites') {
-      jobs = jobs.filter(j => myInvitations.some(i => i.project_id === j.id));
+  jobs = jobs.filter(j => myInvitations.some(i => i.project_id === j.id && i.status === 'pending'));
     } else if (activeTab === 'saved') {
       jobs = jobs.filter(j => savedJobs.includes(j.id));
     }
@@ -333,25 +336,9 @@ const handleDeclineInvitation = async (projectId: string) => {
   if (loading) return <div className="text-center py-20 animate-pulse font-black text-gray-400 uppercase tracking-widest">Entering Marketplace...</div>;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 pb-24 space-y-8">
+    <div className="max-w-5xl mx-auto  px-4 pb-24 space-y-8">
      
-<div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-  {[
-    { id: 'applied', label: 'Active Apps', count: myApplications.length, color: 'indigo' },
-    { id: 'invites', label: 'Pending Invites', count: myInvitations.filter(i => i.status === 'pending').length, color: 'rose' },
-    { id: 'connections', label: 'Connections', count: Object.keys(handshakes).length, color: 'emerald' },
-    { id: 'saved', label: 'Saved', count: savedJobs.length, color: 'orange' }
-  ].map((stat) => (
-    <button 
-      key={stat.label} 
-      onClick={() => setActiveTab(stat.id as any)}
-      className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:border-indigo-200 transition-all text-left"
-    >
-      <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1">{stat.label}</p>
-      <p className={`text-3xl font-black text-${stat.color}-600`}>{stat.count}</p>
-    </button>
-  ))}
-</div>
+
       <div className="flex flex-col md:flex-row justify-between items-center gap-6 mt-8 bg-white p-8 rounded-[2.5rem] shadow-sm">
         <div>
           <h2 className="text-4xl font-black text-gray-900 tracking-tight">Marketplace</h2>
@@ -369,52 +356,49 @@ const handleDeclineInvitation = async (projectId: string) => {
 
       {/* --- Active Handshakes (Cleaned) --- */}
 {/* --- Connections Section --- */}
+{/* --- Connections Horizontal Carousel --- */}
 {(activeTab === 'connections' || Object.keys(handshakes).length > 0) && (
-  <div className="space-y-6 mb-12">
-    <div className="flex items-center justify-between">
-      <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
-        <span className="w-3 h-3 bg-emerald-500 rounded-full"></span>
+  <div className="space-y-4 mb-8 animate-in fade-in slide-in-from-top-4 duration-700">
+    <div className="flex items-center justify-between px-2">
+      <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
         Active Partnerships
       </h3>
+      <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded-md">
+        {Object.keys(handshakes).length} Total
+      </span>
     </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {/* Horizontal Scroll Container */}
+    <div className="flex gap-4 overflow-x-auto pb-4 px-2 no-scrollbar snap-x">
       {Object.entries(handshakes).map(([projectId, info]) => {
         const job = availableJobs.find(j => j.id === projectId);
         return (
-          <div key={projectId} className="bg-white p-6 rounded-[2.5rem] border border-emerald-100 shadow-sm hover:shadow-md transition-all">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-emerald-100">
-                  {info.name.charAt(0)}
-                </div>
-                <div>
-                  <h4 className="font-black text-gray-900 leading-tight">{info.name}</h4>
-                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Manager</p>
-                </div>
+          <div 
+            key={projectId} 
+            className="flex-shrink-0 w-[280px] bg-white p-5 rounded-[2rem] border border-emerald-100 shadow-sm transition-all hover:shadow-md snap-start"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg shadow-emerald-100">
+                {info.name.charAt(0)}
               </div>
-              <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black px-3 py-1 rounded-full uppercase">Connected</span>
+              <div className="min-w-0">
+                <h4 className="font-black text-gray-900 text-sm truncate">{info.name}</h4>
+                <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest truncate">
+                  {job?.title || 'Private Project'}
+                </p>
+              </div>
             </div>
 
-            <p className="text-sm font-bold text-gray-700 mb-4 line-clamp-1">Project: {job?.title || 'Private Project'}</p>
-
-            <div className="grid grid-cols-2 gap-3">
-              <a 
-                href={`mailto:${info.email}?subject=Collaboration on ${job?.title}`}
-                className="flex items-center justify-center gap-2 py-3 bg-gray-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all"
-              >
-                Message
-              </a>
-              <button 
-                onClick={() => {
-                   // This is where we will trigger the Review Modal
-                   toast.success("Opening Review for " + info.name);
-                }}
-                className="flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 text-gray-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 transition-all"
-              >
-                Review
-              </button>
-            </div>
+            <button
+              onClick={() => onNavigateToMessages(projectId, job?.manager_id || '')}
+              className="w-full py-2.5 bg-emerald-50 text-emerald-700 rounded-xl
+                         font-black text-[10px] uppercase tracking-widest
+                         hover:bg-emerald-600 hover:text-white transition-all 
+                         flex items-center justify-center gap-2 border border-emerald-100"
+            >
+              💬 Open Chat
+            </button>
           </div>
         );
       })}
@@ -429,6 +413,7 @@ const handleDeclineInvitation = async (projectId: string) => {
           { id: 'all', label: 'Discovery', count: 0 },
           { id: 'invites', label: 'Invitations', count: myInvitations.filter(i => i.status === 'pending').length },
           { id: 'applied', label: 'Applied', count: myApplications.length },
+{id: 'connections', label: 'Connections', count: Object.keys(handshakes).length },
           { id: 'saved', label: 'Saved', count: savedJobs.length }
 
         ].map(tab => (
@@ -454,7 +439,7 @@ const handleDeclineInvitation = async (projectId: string) => {
           </div>
         ) : (
           filteredJobs.map(job => {
-            const score = getMatchScore(job.requirements);
+            const score = getMatchScore(job);
             const application = myApplications.find(a => a.project_id === job.id);
             const invitation = myInvitations.find(i => i.project_id === job.id);
             const isAccepted = invitation?.status === 'accepted';
@@ -468,43 +453,66 @@ const handleDeclineInvitation = async (projectId: string) => {
 
                 <div className="flex flex-col md:flex-row justify-between gap-6">
                   <div className="flex-1 space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wider">{score}% Match</span>
-                      <span className="bg-gray-50 text-gray-400 text-[10px] font-black px-2 py-1 rounded-lg uppercase">Posted {getTimeAgo(job.created_at)}</span>
-                      {application && <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black px-2 py-1 rounded-lg uppercase">Applied</span>}
-                    </div>
+                   <div className="flex flex-wrap gap-2">
+  <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1.5 ${
+    score > 70 ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'
+  }`}>
+    <span className="relative flex h-2 w-2">
+      {/* Small "Pulse" dot to make it look like AI is thinking */}
+      {score > 70 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>}
+      <span className={`relative inline-flex rounded-full h-2 w-2 ${score > 70 ? 'bg-indigo-600' : 'bg-gray-400'}`}></span>
+    </span>
+    {score}% Match
+  </span>
+  <span className="bg-gray-50 text-gray-400 text-[10px] font-black px-2 py-1 rounded-lg uppercase">
+    Posted {getTimeAgo(job.created_at)}
+  </span>
+</div>
                     <h4 className="text-2xl font-black text-gray-900 group-hover:text-indigo-600 transition-colors pr-12">{job.title}</h4>
                     <p className="text-gray-500 text-sm line-clamp-2">{job.description}</p>
                   </div>
-
-                  <div className="min-w-[220px]">
-                    {isAccepted ? (
-                      <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
-                        <p className="text-[10px] font-black uppercase text-emerald-700 mb-2">Connected</p>
-                        <p className="text-xs font-bold text-gray-900 truncate">{handshakes[job.id]?.name}</p>
-                        <a href={`mailto:${handshakes[job.id]?.email}`} onClick={(e) => e.stopPropagation()} className="mt-3 block w-full text-center py-2 bg-white text-emerald-600 rounded-xl text-[10px] font-black uppercase border border-emerald-200 font-black">Email Manager</a>
-                      </div>
-                    ) : invitation?.status === 'pending' ? (
-  <div className="flex flex-col gap-2">
-    <button 
-      onClick={(e) => { e.stopPropagation(); handleAcceptInvitation(job.id); }} 
-      className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
-    >
-      Accept Invite
-    </button>
-    <button 
-      onClick={(e) => { e.stopPropagation(); handleDeclineInvitation(job.id); }} 
-      className="w-full py-2 bg-rose-50 text-rose-600 rounded-xl font-black text-[10px] uppercase hover:bg-rose-100 transition-all"
-    >
-      Decline
-    </button>
-  </div>
-                    ) : application ? (
-                      <button onClick={(e) => { e.stopPropagation(); handleWithdraw(job.id); }} className="w-full py-3 bg-rose-50 text-rose-600 rounded-2xl font-black text-[10px] uppercase">Withdraw</button>
-                    ) : (
-                      <button onClick={(e) => { e.stopPropagation(); setSelectedJob(job); }} className="w-full py-4 bg-gray-900 text-white rounded-2xl font-black text-xs uppercase hover:bg-indigo-600 transition-all">View & Apply</button>
-                    )}
-                  </div>
+<div className="min-w-[220px]">
+  {isAccepted ? (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onNavigateToMessages(job.id, job.manager_id);
+      }}
+      className="w-full mt-4 py-3 bg-emerald-50 text-emerald-700 rounded-2xl font-black text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2"
+    >
+      <FaPaperPlane size={12} /> Chat
+    </button>
+  ) : invitation?.status === 'pending' ? (
+    <div className="flex flex-col gap-2">
+      <button 
+        onClick={(e) => { e.stopPropagation(); handleAcceptInvitation(job.id); }} 
+        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
+      >
+        Accept Invite
+      </button>
+      <button 
+        onClick={(e) => { e.stopPropagation(); handleDeclineInvitation(job.id); }} 
+        className="w-full py-2 bg-rose-50 text-rose-600 rounded-xl font-black text-[10px] uppercase hover:bg-rose-100 transition-all"
+      >
+        Decline
+      </button>
+    </div>
+  ) : application ? (
+    <button 
+      onClick={(e) => { e.stopPropagation(); handleWithdraw(job.id); }} 
+      className="w-full py-3 bg-rose-50 text-rose-600 rounded-2xl font-black text-[10px] uppercase"
+    >
+      Withdraw Application
+    </button>
+  ) : (
+    <button 
+      onClick={(e) => { e.stopPropagation(); setSelectedJob(job); }} 
+      className="w-full py-4 bg-gray-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl shadow-gray-100"
+    >
+      View & Apply
+    </button>
+  )} 
+</div>
                 </div>
               </div>
             );

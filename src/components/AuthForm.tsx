@@ -9,9 +9,11 @@ export default function AuthForm() {
   const navigate = useNavigate();
   
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false); // Added toggle
   const [role, setRole] = useState<Role>('seeker');
   const [showPolicy, setShowPolicy] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState(""); // Added for success feedback
   const [isLoading, setIsLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -25,47 +27,54 @@ export default function AuthForm() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // const validatePassword = (pw: string) => {
-  //   const regex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
-  //   return regex.test(pw);
-  // };
-
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError("");
-  setIsLoading(true);
+    e.preventDefault();
+    setError("");
+    setMessage("");
+    setIsLoading(true);
 
-  try {
-    const { data, error: authError } = isLogin 
-      ? await supabase.auth.signInWithPassword({ email: formData.email, password: formData.password })
-      : await supabase.auth.signUp({ 
-          email: formData.email, 
-          password: formData.password,
-          options: { data: { role: role.toUpperCase(), full_name: formData.fullName } }
+    try {
+      // Logic for Forgot Password
+      if (isForgotPassword) {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
+          redirectTo: `${window.location.origin}/auth?type=recovery`,
         });
+        if (resetError) throw resetError;
+        setMessage("Password reset link sent to your email!");
+        setIsLoading(false);
+        return;
+      }
 
-    if (authError) throw authError;
+      // Your original Auth Logic
+      const { data, error: authError } = isLogin 
+        ? await supabase.auth.signInWithPassword({ email: formData.email, password: formData.password })
+        : await supabase.auth.signUp({ 
+            email: formData.email, 
+            password: formData.password,
+            options: { data: { role: role.toUpperCase(), full_name: formData.fullName } }
+          });
 
-    if (data.user) {
-      // Small delay to let the AuthContext catch the session change
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 100);
+      if (authError) throw authError;
+
+      if (data.user) {
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 100);
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setIsLoading(false); 
     }
-  } catch (err: any) {
-    setError(err.message);
-    setIsLoading(false); // Only unlock button on ERROR
-  }
-};
+  };
 
   return (
     <div className="relative flex flex-col justify-center h-full p-4 w-full md:w-1/2 overflow-hidden bg-white">
       <div className="max-w-md mx-auto w-full">
         <h2 className="text-3xl font-bold mb-2 text-gray-900 text-center md:text-left">
-          {isLogin ? 'Welcome back' : 'Create an account'}
+          {isForgotPassword ? 'Reset Password' : isLogin ? 'Welcome back' : 'Create an account'}
         </h2>
         <p className="text-gray-600 mb-6 text-center md:text-left">
-          {isLogin ? 'Enter your details to sign in' : 'Join the TalentMatch community'}
+          {isForgotPassword ? 'Enter your email to receive a reset link' : isLogin ? 'Enter your details to sign in' : 'Join the TalentMatch community'}
         </p>
 
         {error && (
@@ -74,7 +83,13 @@ export default function AuthForm() {
           </div>
         )}
 
-        {!isLogin && (
+        {message && (
+          <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 text-sm rounded-r-lg">
+            {message}
+          </div>
+        )}
+
+        {!isLogin && !isForgotPassword && (
           <div className="flex gap-4 mb-8">
             {[
               { id: 'seeker', label: 'Job Seeker', icon: <FaUser /> },
@@ -98,7 +113,7 @@ export default function AuthForm() {
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {!isLogin && (
+          {!isLogin && !isForgotPassword && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
               <input
@@ -128,36 +143,50 @@ export default function AuthForm() {
             />
           </div>
 
-          <div className={`grid ${isLogin ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input
-                name="password"
-                type="password"
-                required
-                disabled={isLoading}
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="w-full border border-gray-200 px-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none transition-all disabled:bg-gray-50"
-              />
-            </div>
-            {!isLogin && (
+          {!isForgotPassword && (
+            <div className={`grid ${isLogin ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                 <input
-                  name="confirmPassword"
+                  name="password"
                   type="password"
                   required
                   disabled={isLoading}
-                  value={formData.confirmPassword}
+                  value={formData.password}
                   onChange={handleChange}
                   placeholder="••••••••"
                   className="w-full border border-gray-200 px-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none transition-all disabled:bg-gray-50"
                 />
               </div>
-            )}
-          </div>
+              {!isLogin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm</label>
+                  <input
+                    name="confirmPassword"
+                    type="password"
+                    required
+                    disabled={isLoading}
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    className="w-full border border-gray-200 px-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none transition-all disabled:bg-gray-50"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {isLogin && !isForgotPassword && (
+            <div className="flex justify-end">
+              <button 
+                type="button" 
+                onClick={() => setIsForgotPassword(true)}
+                className="text-xs font-semibold text-blue-600 hover:underline"
+              >
+                Forgot Password?
+              </button>
+            </div>
+          )}
 
           <button
             type="submit"
@@ -172,16 +201,29 @@ export default function AuthForm() {
                 Processing...
               </span>
             ) : (
-              isLogin ? 'Sign In' : 'Get Started'
+              isForgotPassword ? 'Send Reset Link' : isLogin ? 'Sign In' : 'Get Started'
             )}
           </button>
+
+          {isForgotPassword && (
+            <button 
+              type="button"
+              onClick={() => setIsForgotPassword(false)}
+              className="text-sm text-gray-500 hover:text-gray-800 transition-colors"
+            >
+              Back to Login
+            </button>
+          )}
         </form>
 
         <p className="text-sm text-gray-500 mt-6 text-center">
           {isLogin ? "New to TalentMatch?" : "Already a member?"}{' '}
           <button 
             type="button"
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+                setIsLogin(!isLogin);
+                setIsForgotPassword(false);
+            }}
             className="text-blue-600 font-semibold hover:underline"
           >
             {isLogin ? 'Sign up' : 'Log in'}
@@ -196,7 +238,7 @@ export default function AuthForm() {
         </button>
       </div>
 
-      {/* Policy Drawer */}
+      {/* Policy Drawer remains unchanged */}
       <div 
         className={`fixed top-0 right-0 h-full w-80 md:w-96 bg-white shadow-2xl z-50 p-8 transform transition-transform duration-300 ease-in-out ${
           showPolicy ? 'translate-x-0' : 'translate-x-full'
@@ -205,7 +247,7 @@ export default function AuthForm() {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-gray-800">Legal Info</h2>
           <button 
-           title='time'
+            title='time'
             onClick={() => setShowPolicy(false)} 
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
@@ -213,10 +255,10 @@ export default function AuthForm() {
           </button>
         </div>
         <div className="text-gray-600 text-sm overflow-y-auto h-[85%] pr-2">
-           <h3 className="font-bold mb-2">Terms of Service</h3>
-           <p className="mb-4 text-xs leading-relaxed">By using TalentMatch, you agree to our standard operating procedures for talent matching and recruitment.</p>
-           <h3 className="font-bold mb-2">Privacy Policy</h3>
-           <p className="text-xs leading-relaxed">Your data is secured using Supabase Row Level Security. We never share your credentials.</p>
+            <h3 className="font-bold mb-2">Terms of Service</h3>
+            <p className="mb-4 text-xs leading-relaxed">By using TalentMatch, you agree to our standard operating procedures for talent matching and recruitment.</p>
+            <h3 className="font-bold mb-2">Privacy Policy</h3>
+            <p className="text-xs leading-relaxed">Your data is secured using Supabase Row Level Security. We never share your credentials.</p>
         </div>
       </div>
     </div>

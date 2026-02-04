@@ -1,20 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../../lib/supabaseClient'; 
 import { 
   FaPlus, FaUsers, FaBriefcase, FaChartLine, FaTimes, 
   FaSearch, FaFilter, 
   FaExternalLinkAlt, FaSpinner, FaPaperPlane
 } from 'react-icons/fa';
-import ProfileCard from '../ProfileCard';
+import ProfileCard from '../Common/ProfileCard';
 import JobManagement from './JobManagement'; 
-import JobDetailView from '../JobDetailView';
+import JobDetailView from '../Common/JobDetailView';
 import PostJobModal from './PostJobModal';
 import toast from 'react-hot-toast';
 import ApplicantSlideOver from './ApplicantSlideOver';
 import { useInvitations } from './useInvitations';
 export default function ManagerView({ initialView, onNavigateToMessages }: { initialView?: string;
-  onNavigateToMessages: (projectId: string) => void;
+  onNavigateToMessages: (projectId: string, recipientId: string) => void;
 }) {
+
+  
   // 1. ALL STATES
   const [viewMode, setViewMode] = useState<string>('pipeline');
   const [user, setUser] = useState<any>(null);
@@ -48,49 +50,71 @@ export default function ManagerView({ initialView, onNavigateToMessages }: { ini
     fetchInvitations 
   } = useInvitations(user?.id); 
 
-  // 3. FETCH DATA
+  const canChat = useCallback((projectId: string, seekerId: string) => {
+    return sentInvitations.some(
+      inv => inv.project_id === projectId && 
+             inv.seeker_id === seekerId && 
+             inv.status === 'accepted'
+    );
+  }, [sentInvitations]);
+
+  const calculateMatch = (seekerSkills: string[], jobRequirements: string[]) => {
+  if (!jobRequirements || jobRequirements.length === 0) return 70; // Baseline
+  
+  const seekerSet = new Set(seekerSkills.map(s => s.toLowerCase()));
+  const matches = jobRequirements.filter(req => seekerSet.has(req.toLowerCase()));
+  
+  // Calculate percentage
+  const score = (matches.length / jobRequirements.length) * 100;
+  
+  // Return score, capped at 98 (to keep it looking "calculated")
+  return Math.min(Math.max(Math.round(score), 15), 98); 
+};
+
+
+
   const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
-      setUser(authUser);
+  setLoading(true);
+  try {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return;
+    setUser(authUser);
 
-      const [seekersRes, jobsRes, appsRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('role', 'SEEKER'),
-        supabase.from('projects').select('*', { count: 'exact' }).eq('manager_id', authUser.id).eq('status', 'open'),
-        supabase.from('applications').select(`
-            *,
-            profiles:applications_user_id_fkey (id, full_name, avatar_url, skills, bio, email),
-            projects:project_id!inner (id, title, manager_id)
-          `).eq('projects.manager_id', authUser.id).order('created_at', { ascending: false }),
-        fetchInvitations()
-      ]);
+    const [seekersRes, jobsRes, appsRes] = await Promise.all([
+      supabase.from('profiles').select('*').eq('role', 'SEEKER'),
+      supabase.from('projects').select('*', { count: 'exact' }).eq('manager_id', authUser.id).eq('status', 'open'),
+      supabase.from('applications').select(`
+          *,
+          profiles:applications_user_id_fkey (id, full_name, avatar_url, skills, bio, email),
+          projects:project_id!inner (id, title, requirements)
+        `).eq('projects.manager_id', authUser.id).order('created_at', { ascending: false }),
+      fetchInvitations()
+    ]);
 
-      setAllSeekers(seekersRes.data || []);
-      setMyJobs(jobsRes.data || []);
-      setActiveJobsCount(jobsRes.count || 0);
-      
-      // AUTO-SELECT the first job for the scouting dropdown if none selected
-      if (jobsRes.data && jobsRes.data.length > 0 && !scoutingForJobId) {
-        setScoutingForJobId(jobsRes.data[0].id);
-      }
+    // CALCULATE MATCHES HERE
+    const formatted = appsRes.data?.map((app: any) => ({
+      ...app,
+      name: app.profiles?.full_name || 'Anonymous',
+      role: app.projects?.title || 'Unknown Position',
+      // We use your calculateMatch function here
+      match: calculateMatch(app.profiles?.skills || [], app.projects?.requirements || []),
+      project_id: app.project_id 
+    })) || [];
 
-      const formattedApps = appsRes.data?.map((app: any) => ({
-        ...app,
-        name: app.profiles?.full_name || 'Anonymous',
-        role: app.projects?.title || 'Unknown Position',
-        match: app.match_score || 0,
-        project_id: app.project_id 
-      })) || [];
+    setAllSeekers(seekersRes.data || []);
+    setMyJobs(jobsRes.data || []);
+    setActiveJobsCount(jobsRes.count || 0);
+    setApplicants(formatted); // Save the calculated matches to state
 
-      setApplicants(formattedApps);
-    } catch (err: any) {
-      toast.error("Sync failed");
-    } finally {
-      setLoading(false);
+    if (jobsRes.data && jobsRes.data.length > 0 && !scoutingForJobId) {
+      setScoutingForJobId(jobsRes.data[0].id);
     }
-  }, [fetchInvitations]);
+  } catch (err: any) {
+    toast.error("Sync failed");
+  } finally {
+    setLoading(false);
+  }
+}, [fetchInvitations, scoutingForJobId]);
 
   // 4. EFFECTS
   useEffect(() => {
@@ -111,27 +135,31 @@ const updateAppStatus = async (appId: string, newStatus: string) => {
 
     if (appError) throw appError;
 
-    // Bridge Logic: When moving to 'interviewing', we open the chat channel
     if (newStatus === 'interviewing') {
       const app = applicants.find(a => a.id === appId);
-      
-      // Upsert an 'accepted' invitation to unlock the MessagingView
-      const { error: handshakeError } = await supabase
-        .from('invitations')
-        .upsert({
-          project_id: app.project_id,
-          seeker_id: app.profiles.id,
-          manager_id: user.id, 
-          status: 'accepted' // 'accepted' makes it visible in the chat list
-        }, { onConflict: 'project_id, seeker_id' });
+      if (!app || !user) return;
 
-      if (handshakeError) throw handshakeError;
-      toast.success('Channel Opened! You can now message this candidate.');
+      // Senior fix: Check if invitation exists before upserting
+      const invitationExists = sentInvitations.some(
+        i => i.project_id === app.project_id && i.seeker_id === app.profiles.id
+      );
+
+      if (!invitationExists) {
+        const { error: handshakeError } = await supabase
+          .from('invitations')
+          .insert({
+            project_id: app.project_id,
+            seeker_id: app.profiles.id,
+            manager_id: user.id, 
+            status: 'accepted' 
+          });
+        if (handshakeError) throw handshakeError;
+        toast.success('Channel Opened!');
+      }
     }
-
     setApplicants(prev => prev.map(a => a.id === appId ? { ...a, status: newStatus } : a));
   } catch (err) {
-    toast.error("Could not bridge to chat");
+    toast.error("Status sync failed");
   }
 };
 
@@ -165,10 +193,12 @@ const updateAppStatus = async (appId: string, newStatus: string) => {
     }
   };
 
-  const filteredSeekers = allSeekers.filter(s => 
+  const filteredSeekers = useMemo(() => {
+  return allSeekers.filter(s => 
     s.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.skills?.some((sk: string) => sk.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+}, [allSeekers, searchQuery]);
 
   // Early Return for Detail View
   if (selectedJob) {
@@ -224,10 +254,34 @@ const updateAppStatus = async (appId: string, newStatus: string) => {
           {viewMode === 'pipeline' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <StatCard label="Active Openings" value={activeJobsCount} icon={<FaBriefcase />} color="bg-indigo-600" />
-                <StatCard label="Pipeline Depth" value={applicants.length} icon={<FaUsers />} color="bg-rose-500" />
-                <StatCard label="Avg. Match Quality" value={`${applicants.length > 0 ? Math.round(applicants.reduce((a,c)=>a+(c.match_score||0),0)/(applicants.length)) : 0}%`} icon={<FaChartLine />} color="bg-amber-500" />
-              </div>
+  {/* Card 1: Active Openings */}
+  <StatCard 
+    label="Active Openings" 
+    value={activeJobsCount} 
+    icon={<FaBriefcase />} 
+    color="bg-indigo-600" 
+  />
+
+  {/* Card 2: Pipeline Depth */}
+  <StatCard 
+    label="Pipeline Depth" 
+    value={applicants.length} 
+    icon={<FaUsers />} 
+    color="bg-rose-500" 
+  />
+
+  {/* Card 3: Avg. Match Quality */}
+  <StatCard 
+    label="Avg. Match Quality" 
+    value={
+      applicants.length > 0 
+        ? `${Math.round(applicants.reduce((sum, app) => sum + (app.match || 0), 0) / applicants.length)}%`
+        : "0%"
+    } 
+    icon={<FaChartLine />} 
+    color="bg-amber-500" 
+  />
+</div>
 
               <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
                 <div className="px-8 py-6 bg-gray-50/50 border-b border-gray-100">
@@ -238,7 +292,7 @@ const updateAppStatus = async (appId: string, newStatus: string) => {
                     <thead className="bg-gray-50/30">
                       <tr className="text-[10px] uppercase font-black text-gray-400 tracking-widest">
                         <th className="px-8 py-5 text-left">Talent</th>
-                        <th className="px-8 py-5 text-center">AI Fit</th>
+                        <th className="px-8 py-5 text-center">Match score</th>
                         <th className="px-8 py-5 text-right">Action</th>
                       </tr>
                     </thead>
@@ -258,17 +312,24 @@ const updateAppStatus = async (appId: string, newStatus: string) => {
 
       {/* CORRECTED ACTION CELL */}
       <td className="px-8 py-5 text-right flex gap-2 justify-end">
-        {/* Only show chat if the status is interviewing (meaning the handshake happened) */}
-        {app.status === 'interviewing' && (
+        {canChat(app.project_id, app.profiles.id) && (
     <button 
-    onClick={() => onNavigateToMessages(app.project_id)} // CHANGED inv to app
-    className="p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
-    title="Open Chat"
-  >
-    <FaPaperPlane size={14} />
-    <span className="text-[10px] font-bold uppercase">Chat</span>
-  </button>
-)}
+      onClick={() => onNavigateToMessages(app.project_id, app.profiles.id)} 
+      className="p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
+    >
+      <FaPaperPlane size={14} />
+      <span className="text-[10px] font-bold uppercase">Chat</span>
+    </button>)}
+  {app.status === 'interviewing' && (
+    <button 
+      onClick={() => onNavigateToMessages(app.project_id, app.profiles.id)} 
+      className="p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
+      title="Open Chat"
+    >
+      <FaPaperPlane size={14} />
+      <span className="text-[10px] font-bold uppercase">Chat</span>
+    </button>
+  )}
         
         <button 
           onClick={() => setSelectedApplicant(app)} 
@@ -384,15 +445,14 @@ const updateAppStatus = async (appId: string, newStatus: string) => {
                   </span>
                 </td>
               <td className="px-8 py-5 text-right flex gap-3 justify-end">
-  {/* Show chat button unless the invitation was declined */}
   {inv.status !== 'declined' && (
     <button 
-    onClick={() => onNavigateToMessages(inv.project_id)} // USE THE PROP
-    className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
-  >
-    <FaPaperPlane size={12} />
-    <span className="text-[10px] font-bold uppercase">Chat</span>
-  </button>
+      onClick={() => onNavigateToMessages(inv.project_id, inv.seeker_id)} 
+      className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
+    >
+      <FaPaperPlane size={12} />
+      <span className="text-[10px] font-bold uppercase">Chat</span>
+    </button>
   )}
 
   <button 

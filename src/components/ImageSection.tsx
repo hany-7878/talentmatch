@@ -1,4 +1,4 @@
-import HeroImage from '../assets/Images/option1.png';
+import HeroImage from '../assets/Images/option3.png';
 
 export default function ImageSection() {
   return (

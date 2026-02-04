@@ -8,12 +8,9 @@ export default function Landing() {
 
   return (
     <div className="flex min-h-screen">
-      {/* Left Side: Image + Motto */}
       <div className="hidden md:flex w-1/2 h-screen">
         <ImageSection />
       </div>
-
-      {/* Right Side: Role selection + Auth Form */}
       <div className="flex flex-col w-full md:w-1/2 items-center justify-center p-8">
         <AuthForm 
           role={role} 

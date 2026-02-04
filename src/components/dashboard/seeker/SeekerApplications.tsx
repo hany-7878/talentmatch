@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../lib/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
-import JobDetailView from '../JobDetailView'; 
+import JobDetailView from '../Common/JobDetailView'; 
 import { FaClock, FaCheckCircle, FaChevronRight, FaTrashAlt, FaExclamationTriangle } from 'react-icons/fa';
 
 export default function SeekerApplications() {

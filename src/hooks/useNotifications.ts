@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
-/* ================= TYPES & CONSTANTS ================= */
 export type UserRole = 'manager' | 'seeker';
 
 const TABLE = {
@@ -21,20 +20,17 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
   const fetchRef = useRef<() => Promise<void>>();
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // Derived state prevents sync bugs between individual counts and the total
   const total = useMemo(() => 
     counts.invitations + counts.applications + counts.messages, 
   [counts]);
 
-  /* ================= DATA FETCHING ================= */
   const fetchAllCounts = useCallback(async () => {
     if (!userId || userId === '') return;
-
     const isManager = role === 'manager';
 
     try {
       const results = await Promise.allSettled([
-        // 1. Invitations
+        // 1. Invitations (Pending)
         supabase.from(TABLE.INVITATIONS)
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pending')
@@ -50,7 +46,7 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
               .select('id', { count: 'exact', head: true })
               .eq('user_id', userId),
 
-        // 3. Messages (Direct receiver_id query - NO MORE 400 ERROR)
+        // 3. Unread Messages
         supabase.from(TABLE.MESSAGES)
           .select('id', { count: 'exact', head: true })
           .eq('is_read', false)
@@ -75,7 +71,6 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
 
   fetchRef.current = fetchAllCounts;
 
-  /* ================= REALTIME & DEBOUNCING ================= */
   const debouncedRefresh = useCallback(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
@@ -88,10 +83,9 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
 
     fetchAllCounts();
 
-    const isManager = role === 'manager';
     const channel = supabase.channel(`notifs:${userId}`);
 
-    // Incremental Logic for Messages (Updates state without a network fetch)
+    // --- 1. MESSAGES LISTENER ---
     channel.on('postgres_changes', { 
       event: '*', 
       schema: 'public', 
@@ -107,11 +101,17 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
       }
     });
 
-    // Role-specific table listeners (Invitations/Applications)
+  
     channel.on('postgres_changes', { 
       event: '*', 
       schema: 'public', 
-      table: isManager ? TABLE.APPLICATIONS : TABLE.INVITATIONS 
+      table: TABLE.INVITATIONS 
+    }, debouncedRefresh);
+
+    channel.on('postgres_changes', { 
+      event: '*', 
+      schema: 'public', 
+      table: TABLE.APPLICATIONS 
     }, debouncedRefresh);
 
     channel.subscribe();
@@ -122,13 +122,10 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
     };
   }, [userId, role, debouncedRefresh, fetchAllCounts]);
 
-  /* ================= OPTIMISTIC ACTIONS ================= */
   const markMessagesRead = useCallback(async () => {
     if (!userId || counts.messages === 0) return;
-
     const previousMessages = counts.messages;
     
-    // OPTIMISTIC: Clear the UI immediately
     setCounts(prev => ({ ...prev, messages: 0 }));
 
     const { error } = await supabase
@@ -138,7 +135,6 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
       .eq('is_read', false);
     
     if (error) {
-      // ROLLBACK: If DB fails, restore previous count
       setCounts(prev => ({ ...prev, messages: previousMessages }));
       setError("Could not mark messages as read");
     }
