@@ -52,7 +52,7 @@ export default function ManagerView({
     sentInvitations, 
     sendInvitation, 
     withdrawInvitation, 
-    isSubmitting: isInviting, 
+    isSubmitting: _isInviting, 
     fetchInvitations 
   } = useInvitations(user?.id); 
 

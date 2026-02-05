@@ -9,7 +9,7 @@ import { toast } from 'react-hot-toast';
 
 export default function GeneralSettings() {
   const { user, profile, refreshProfile } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const [_, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);

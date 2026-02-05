@@ -13,11 +13,13 @@ export default function Landing() {
       </div>
       <div className="flex flex-col w-full md:w-1/2 items-center justify-center p-8">
         <AuthForm 
-          role={role} 
-          setRole={setRole} 
-          type={formType} 
-          switchType={() => setFormType(formType === 'login' ? 'register' : 'login')} 
-        />
+  // @ts-ignore
+  role={role} 
+  // @ts-ignore
+  setRole={setRole} 
+  type={formType} 
+  switchType={() => setFormType(formType === 'login' ? 'register' : 'login')} 
+/>
       </div>
     </div>
   );

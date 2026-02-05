@@ -6,7 +6,7 @@ export const uploadChatFile = async (projectId: string, file: File) => {
   const fileName = `${Math.random()}.${fileExt}`;
   const filePath = `${projectId}/${fileName}`;
 
-  const { error: uploadError, data } = await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from('chat-attachments')
     .upload(filePath, file);
 
