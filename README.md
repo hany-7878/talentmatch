@@ -1,235 +1,107 @@
 <img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/28a2dc43-dd57-43c0-8842-8d846e6ecc42" />
 
-# TalentMatch
+# 🚀 TalentMatch Pro: Nexus Edition
 
-**TalentMatch** is a modern freelance and job marketplace connecting skilled candidates with time-constrained hiring managers. It leverages lightweight AI for smart matching, fast applications, and transparent workflows—without adding unnecessary complexity.
+### **The Professional PWA Marketplace for Elite Talent & Project Managers**
 
-## Table of Contents
+TalentMatch Pro is a high-performance, real-time Progressive Web App (PWA) that connects skilled Seekers with visionary Project Managers. Built with a "Mobile-First" philosophy and a "Zero-Latency" mindset, this project serves as a cornerstone for the **Project Nexus** portfolio.
 
-* [Features](#features)
-* [Target Users](#target-users)
-* [Tech Stack](#tech-stack)
-* [Project Structure](#project-structure)
-* [Getting Started](#getting-started)
-* [API Endpoints](#api-endpoints)
-* [Future Improvements](#future-improvements)
+## 💎 Project Nexus: Technical Excellence
 
-## Features
+To meet the rigorous standards of Project Nexus, this application goes beyond basic CRUD operations:
 
-### For Candidates
+* **Full TypeScript Implementation:** End-to-end type safety ensures a maintainable, self-documenting codebase.
+* **PWA Standalone Experience:** Fully installable on mobile with offline caching and custom splash screens.
+* **Real-Time Engine:** Live messaging and notifications using Supabase Broadcast and Presence.
+* **Advanced Security:** Row Level Security (RLS) policies protect every transaction at the database level.
 
-* Quick registration & profile setup
-* CV upload & one-click applications
-* Browse jobs with filtering by budget, location, or remote
-* AI-powered match scores to evaluate fit
-* Track application status in real time
-* Chatbot support for FAQs & application guidance
+## ✨ Features Breakdown
 
-### For Hiring Managers
+### 🔐 Authentication & Security
 
-* Post jobs with skill tags & budgets
-* AI-assisted applicant ranking
-* One dashboard to review candidates with summaries
-* Update candidate status & manage payments
-* Contract and milestone management
-* Messaging & notification system
+* **Role-Based Access Control (RBAC):** Users register as either a `SEEKER` or a `MANAGER`, unlocking tailored dashboard experiences.
+* **Secure Auth Flow:** Integrated login, registration, and a functional **Forgot Password** recovery system.
+* **Protected Routes:** Automatic redirection based on authentication state and user profile status.
 
-## Target Users
+### 🔍 The Seeker Experience (Discovery to Hire)
 
-**Growth-Focused Candidate**
+* **Project Discovery:** A high-speed marketplace to browse active projects with **Real-time Filters** (Budget, Category, Location).
+* **Application Lifecycle:** One-click applications with status tracking (Pending, Accepted, Declined).
+* **Saved Jobs:** A personalized watchlist for project tracking.
+* **Connection System:** Mutual "Handshakes" that initiate secure, private communication channels.
 
-* Tech/knowledge professionals seeking quality opportunities
-* Needs clarity on salary, skills, and remote/onsite expectations
+### 💼 The Manager Experience (Talent Management)
 
-**Time-Constrained Hiring Manager**
+* **Project Studio:** Comprehensive tools to create, edit, and manage professional job postings.
+* **Applicant Slide-Over:** An intuitive UI to review candidate bios, skills, and portfolios without losing context.
+* **Direct Invitations:** Search the global Seeker pool and send real-time project invites to top-tier talent.
 
-* Founders, team leads, or department heads managing hiring
-* Needs quick access to relevant applicants and clear payment setup
+### 💬 Professional Messaging Suite
 
-## Tech Stack
+* **Optimistic UI:** Local state updates ensure that messages and **Emoji Reactions** appear instantly.
+* **Typing Indicators:** Real-time feedback showing when the other person is composing a message.
+* **Notification System:** A global `NotificationBell` that tracks unread messages and new invitations across the entire app.
 
-* **Frontend:** React, Vite, TypeScript, NativeWindCSS (or Tailwind)
-* **Backend:** Django REST API (already built)
-* **Authentication:** JWT
-* **Database:** PostgreSQL
-* **Cache & Async Tasks:** Redis + Celery
-* **AI Matching:** RapidAPI integration
-* **Deployment:** Docker / Render / Vercel for frontend
+### 👤 Profile & Personalization
 
-## Project Structure
+* **Cloud Storage Integration:** Profile picture uploads and avatar management using Supabase Storage buckets.
+* **Dynamic Profiles:** Update bios, full names, and professional roles with instant synchronization across the platform.
 
-```
-TalentMatch/
-├── frontend/               # React/Vite app
-│   ├── public/
-│   └── src/
-│       ├── components/
-│       ├── pages/
-│       ├── services/       # API calls
-│       ├── hooks/
-│       ├── context/
-│       └── App.tsx
-├── backend/                # Provided Django API
-└── README.md
-```
+---
 
-## Getting Started
+## 🛠 Tech Stack & Tools
 
-1. **Clone Repo**
+| Layer | Technology | Purpose |
+| --- | --- | --- |
+| **Frontend** | **React 18 + Vite** | High-performance UI and lightning-fast builds. |
+| **Language** | **TypeScript** | Strict type-safety and reduced runtime errors. |
+| **Styling** | **Tailwind CSS** | Modern, responsive, utility-first design. |
+| **BaaS** | **Supabase** | Auth, PostgreSQL, Real-time sync, and S3 Storage. |
+| **PWA** | **Vite-PWA** | Service workers, manifest management, and offline support. |
 
+---
+
+## 📈 Architecture & Best Practices
+
+### **1. Real-time Synchronization**
+
+The app uses a "Single Source of Truth" strategy. By subscribing to PostgreSQL changes, the UI updates automatically across all devices whenever a database record changes.
+
+### **2. Component-Driven Design**
+
+The UI is broken into modular, reusable components (Sidebar, MessageContainer, ProfileCard), ensuring the code is easy to test and scale.
+
+### **3. Performance Optimization**
+
+* **Stale-While-Revalidate:** API calls are cached for instant loading while updating in the background.
+* **Lazy Loading:** Critical assets are prioritized for the PWA experience.
+
+---
+
+## 🚀 Installation & Deployment
+
+1. **Clone the Repository:**
 ```bash
-git clone https://github.com/your-username/TalentMatch.git
-cd TalentMatch
+git clone https://github.com/YOUR_USERNAME/talentmatch.git
+
 ```
-
-2. **Frontend Setup**
-
+2. **Install Dependencies:**
 ```bash
-cd frontend
 npm install
-npm run dev
-```
-
-3. **Backend API**
-
-* The backend API is already provided by  teammate.
-* Base URL (local): `http://localhost:8000/`
-
-4. **Environment Variables**
-   Create `.env` in `frontend` with:
 
 ```
-VITE_API_BASE_URL=http://localhost:8000/api
+3. **Environment Configuration:**
+Create a `.env` file with your Supabase credentials:
+```env
+VITE_SUPABASE_URL=your_url
+VITE_SUPABASE_ANON_KEY=your_key
+
 ```
-
-## API Endpoints
-
-## **Authentication (JWT)**
-
-| Method | Endpoint                            | Description                         |
-| ------ | ----------------------------------- | ----------------------------------- |
-| POST   | `/api/auth/register/`               | Register a new user                 |
-| POST   | `/api/auth/login/`                  | Login and get access/refresh tokens |
-| POST   | `/api/auth/refresh/`                | Refresh JWT token                   |
-| POST   | `/api/auth/logout/`                 | Logout user                         |
-| POST   | `/api/auth/verify-email/`           | Verify email after registration     |
-| POST   | `/api/auth/password-reset/`         | Request password reset              |
-| POST   | `/api/auth/password-reset/confirm/` | Confirm new password                |
+4. **Deploy:**
+Built for seamless deployment on **Vercel** or **Netlify**.
 
 ---
 
-## **Users**
+## 📝 Development Journey (Project Nexus)
 
-| Method | Endpoint                | Description                     |
-| ------ | ----------------------- | ------------------------------- |
-| GET    | `/api/users/me/`        | Get current user profile        |
-| GET    | `/api/users/{id}/`      | Get any user by ID              |
-| PATCH  | `/api/users/me/`        | Update current user profile     |
-| POST   | `/api/users/me/avatar/` | Upload or update profile avatar |
-
----
-
-## **Freelancers**
-
-| Method | Endpoint                                   | Description               |
-| ------ | ------------------------------------------ | ------------------------- |
-| GET    | `/api/freelancers/`                        | List all freelancers      |
-| GET    | `/api/freelancers/{id}/`                   | Get freelancer detail     |
-| PATCH  | `/api/freelancers/{id}/`                   | Update freelancer profile |
-| POST   | `/api/freelancers/{id}/skills/`            | Add skills                |
-| DELETE | `/api/freelancers/{id}/skills/{skill_id}/` | Remove a skill            |
-| CRUD   | `/api/freelancers/{id}/portfolio/`         | Manage portfolio items    |
-| GET    | `/api/freelancers/{id}/reviews/`           | List freelancer reviews   |
-
----
-
-## **Projects**
-
-| Method | Endpoint                        | Description                                              |
-| ------ | ------------------------------- | -------------------------------------------------------- |
-| GET    | `/api/projects/`                | List all projects (supports filters, search, pagination) |
-| POST   | `/api/projects/`                | Create a new project                                     |
-| GET    | `/api/projects/{id}/`           | Get project details                                      |
-| PATCH  | `/api/projects/{id}/`           | Update project                                           |
-| DELETE | `/api/projects/{id}/`           | Delete project                                           |
-| GET    | `/api/projects/{id}/proposals/` | List proposals for a project                             |
-| POST   | `/api/projects/{id}/save/`      | Save a project                                           |
-| POST   | `/api/projects/{id}/unsave/`    | Unsave a project                                         |
-
----
-
-## **Proposals**
-
-| Method | Endpoint                      | Description        |
-| ------ | ----------------------------- | ------------------ |
-| POST   | `/api/proposals/`             | Submit a proposal  |
-| GET    | `/api/proposals/`             | List all proposals |
-| GET    | `/api/proposals/{id}/`        | Proposal detail    |
-| PATCH  | `/api/proposals/{id}/`        | Update proposal    |
-| DELETE | `/api/proposals/{id}/`        | Delete proposal    |
-| POST   | `/api/proposals/{id}/accept/` | Accept proposal    |
-| POST   | `/api/proposals/{id}/reject/` | Reject proposal    |
-
----
-
-## **Contracts**
-
-| Method | Endpoint                               | Description            |
-| ------ | -------------------------------------- | ---------------------- |
-| GET    | `/api/contracts/`                      | List contracts         |
-| GET    | `/api/contracts/{id}/`                 | Contract detail        |
-| PATCH  | `/api/contracts/{id}/complete/`        | Mark contract complete |
-| POST   | `/api/contracts/{id}/release-payment/` | Release payment        |
-| POST   | `/api/contracts/{id}/dispute/`         | Dispute contract       |
-
----
-
-## **Reviews**
-
-| Method | Endpoint             | Description     |
-| ------ | -------------------- | --------------- |
-| POST   | `/api/reviews/`      | Submit a review |
-| GET    | `/api/reviews/`      | List reviews    |
-| GET    | `/api/reviews/{id}/` | Review detail   |
-
----
-
-## **Messaging**
-
-| Method | Endpoint                                                        | Description                   |
-| ------ | --------------------------------------------------------------- | ----------------------------- |
-| GET    | `/api/messaging/conversations/`                                 | List conversations            |
-| GET    | `/api/messaging/conversations/{id}/messages/`                   | List messages in conversation |
-| POST   | `/api/messaging/conversations/{id}/messages/`                   | Send message                  |
-| PATCH  | `/api/messaging/conversations/{id}/messages/{message_id}/read/` | Mark as read                  |
-
----
-
-## **Notifications**
-
-| Method | Endpoint                            | Description                      |
-| ------ | ----------------------------------- | -------------------------------- |
-| GET    | `/api/notifications/`               | List notifications               |
-| PATCH  | `/api/notifications/{id}/read/`     | Mark single notification as read |
-| PATCH  | `/api/notifications/mark-all-read/` | Mark all notifications as read   |
-| DELETE | `/api/notifications/{id}/`          | Delete notification              |
-
----
-
-## **AI Matching**
-
-| Method | Endpoint                                       | Description                         |
-| ------ | ---------------------------------------------- | ----------------------------------- |
-| GET    | `/api/ai-matching/freelancer-recommendations/` | Recommend freelancers for a project |
-| GET    | `/api/ai-matching/project-recommendations/`    | Recommend projects for a freelancer |
-| GET    | `/api/ai-matching/personalized/`               | Personalized AI recommendations     |
-
-
-
-## Future Improvements
-
-* Payments integration & milestone tracking
-* Real-time chat for contracts
-* Advanced AI matching with personalized recommendations
-* Admin dashboard for platform analytics
-
+> "Transitioning TalentMatch from a traditional architecture to a Real-time PWA was a journey in mastering asynchronous state. By leveraging TypeScript's strict interfaces and Supabase's real-time broadcasts, I built a system that prioritizes user speed and data integrity."
