@@ -37,7 +37,6 @@ export default function ChatHeader({ title, partnerName, status, role, onUpdateS
         </div>
       )}
 
-      {/* 2. STATUS BANNER (Waiting for Seeker) - Manager View */}
       {status === 'pending' && isManager && (
         <div className="bg-slate-800/50 border-b border-slate-700/50 px-6 py-2 flex items-center gap-2 text-slate-400">
           <FaInfoCircle size={10} />

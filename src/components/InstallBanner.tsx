@@ -6,17 +6,14 @@ export default function InstallBanner() {
   const [platform, setPlatform] = useState<'android' | 'ios' | 'desktop' | null>(null);
   const [isVisible, setIsVisible] = useState(false);
 
-  // 1. Define the logic FIRST so it's initialized before use
   const checkAndShow = useCallback(() => {
     const lastDismissed = localStorage.getItem('pwa_dismissed');
-    // Show if never dismissed or dismissed more than 24 hours ago
     if (!lastDismissed || Date.now() - parseInt(lastDismissed) > 86400000) {
       setTimeout(() => setIsVisible(true), 3000);
     }
   }, []);
 
   useEffect(() => {
-    // 2. Detection Logic
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
 
@@ -24,21 +21,20 @@ export default function InstallBanner() {
 
     if (isIOS) {
       setPlatform('ios');
-      checkAndShow(); // Now safe to call
+      checkAndShow(); 
     } else {
       setPlatform('android');
     }
 
-    // 3. Android/Chrome Event Listener
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      checkAndShow(); // Now safe to call
+      checkAndShow(); 
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, [checkAndShow]); // Dependency ensures stability
+  }, [checkAndShow]); 
 
   const handleAndroidInstall = async () => {
     if (!deferredPrompt) return;

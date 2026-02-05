@@ -1,4 +1,4 @@
-import { FaHashtag, FaCog, FaCheckDouble, FaTimes } from 'react-icons/fa';
+import { FaCog, FaCheckDouble, FaTimes } from 'react-icons/fa';
 import type { ChatSidebarProps } from '../../types';
 
 export default function ChatSidebar({ 
@@ -14,9 +14,7 @@ export default function ChatSidebar({
 
   return (
     <>
-      {/* 1. MOBILE BACKDROP 
-          Dims the background and allows 'click-to-close' functionality.
-      */}
+    
       <div 
         className={`fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 transition-opacity duration-300 md:hidden ${
           isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -24,10 +22,6 @@ export default function ChatSidebar({
         onClick={onClose}
       />
 
-      {/* 2. SIDEBAR ASIDE
-          Uses translate-x for 60fps animations. 
-          Width is fixed (w-72 or w-80) to prevent text reflow during transition.
-      */}
       <aside className={`
         /* Mobile: Floating Overlay */
         fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 border-r border-slate-800 
@@ -59,7 +53,7 @@ export default function ChatSidebar({
               <FaCheckDouble size={14} />
             </button>
             {/* Mobile-only Close Button */}
-            <button onClick={onClose} className="p-2 text-slate-500 md:hidden">
+            <button title='Close Sidebar' onClick={onClose} className="p-2 text-slate-500 md:hidden">
               <FaTimes size={14} />
             </button>
           </div>
@@ -72,7 +66,7 @@ export default function ChatSidebar({
             const isActive = activeChatId === compositeKey;
             const hasUnread = (chat.unread_count ?? 0) > 0;
 
-            const partner = isManager ? chat.seeker_profiles : chat.projects.profiles;
+            const partner = isManager ? chat.seeker_profiles : chat.projects?.profiles;
             const partnerName = partner?.full_name || 'Anonymous';
             const avatarUrl = partner?.avatar_url;
 
@@ -88,7 +82,7 @@ export default function ChatSidebar({
                 key={compositeKey}
                 onClick={() => {
                   onSelect(chat);
-                  if (window.innerWidth < 768) onClose(); // Auto-close on mobile
+                  if (window.innerWidth < 768) onClose(); 
                 }}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative ${
                   isActive 
@@ -98,7 +92,7 @@ export default function ChatSidebar({
               >
                 <div className="relative flex-shrink-0">
                   {avatarUrl ? (
-                    <img 
+                    <img alt='Avatar'
                       src={avatarUrl} 
                       className={`w-10 h-10 rounded-lg object-cover border-2 transition-all ${
                         isActive ? 'border-white/40' : `border-transparent ${getStatusRing()}`
@@ -121,7 +115,7 @@ export default function ChatSidebar({
                     {partnerName}
                   </span>
                   <span className={`text-[10px] truncate uppercase tracking-tight mt-0.5 font-bold ${isActive ? 'text-indigo-100/70' : 'text-slate-500'}`}>
-                    {chat.projects.title}
+                   {chat.projects?.title || 'Untitled Project'}
                   </span>
                 </div>
               </button>
@@ -134,7 +128,7 @@ export default function ChatSidebar({
           <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-all group cursor-pointer">
             <div className="relative">
               {profile?.avatar_url ? (
-                <img src={profile.avatar_url} className="w-9 h-9 rounded-lg object-cover" />
+                <img alt='Profile Avatar' src={profile.avatar_url} className="w-9 h-9 rounded-lg object-cover" />
               ) : (
                 <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-black uppercase">
                   {profile?.full_name?.charAt(0)}

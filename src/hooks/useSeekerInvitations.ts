@@ -4,21 +4,19 @@ import toast from 'react-hot-toast';
 
 interface SeekerInvitation {
   id: string;
-  project_id: string;
-  status: 'pending' | 'accepted' | 'declined';
+  project_id: string | null; 
+  status: 'pending' | 'accepted' | 'declined' | string | null;
   created_at: string;
-  // Nested data from joins
   projects: {
     id: string;
     title: string;
-    description: string;
-    manager_id: string;
+    description: string | null;
+    manager_id: string | null;
     profiles: {
-      full_name: string;
-      company_name?: string;
-      avatar_url?: string;
-    };
-  };
+      full_name: string | null;
+      avatar_url?: string | null;
+    } | null;
+  } | null; // The whole join can be null if the project was deleted
 }
 
 export function useSeekerInvitations(seekerId: string | undefined) {
@@ -45,7 +43,7 @@ export function useSeekerInvitations(seekerId: string | undefined) {
     if (error) {
       toast.error("Failed to load invitations");
     } else {
-      setInvitations(data || []);
+      setInvitations((data as any) || []);
     }
     setLoading(false);
   }, [seekerId]);
@@ -94,14 +92,14 @@ export function useSeekerInvitations(seekerId: string | undefined) {
         .upsert({
           project_id: invitation.project_id,
           user_id: seekerId,
-          status: 'pending', // Or 'shortlisted' since they were invited
+          status: 'pending', 
           pitch: "Accepted invitation from manager."
         }, { onConflict: 'project_id,user_id' });
 
       if (appError) console.error("Auto-app creation failed:", appError);
     }
 
-    // 4. Update UI locally
+   
     setInvitations(prev => 
       prev.map(inv => inv.id === invitationId ? { ...inv, status } : inv)
     );

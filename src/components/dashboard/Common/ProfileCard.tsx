@@ -19,10 +19,10 @@ export default function ProfileCard({ profile, onInvite, isInvited, handshakeSta
   const isManager = profile.role === 'MANAGER' || (profile as any).role === 'manager';
   const firstLetter = profile.full_name?.trim().charAt(0).toUpperCase() || 'U';
 
-  // Robust parsing for skills and languages
+
   const skills = Array.isArray(profile.skills) ? profile.skills : [];
   
-  // Handles DB returning string (e.g., "English, French") or array (["English", "French"])
+ 
   const languages = Array.isArray(profile.languages) 
     ? profile.languages 
     : typeof profile.languages === 'string' 

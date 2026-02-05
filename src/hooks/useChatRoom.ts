@@ -35,7 +35,7 @@ export function useChatRoom(projectId?: string, userId?: string) {
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen for ALL changes (INSERT, UPDATE, DELETE)
+          event: '*', 
           schema: 'public',
           table: 'messages',
           filter: `project_id=eq.${projectId}`,
@@ -44,8 +44,6 @@ export function useChatRoom(projectId?: string, userId?: string) {
           if (payload.eventType === 'INSERT') {
             const newMessage = payload.new as Message;
             setMessages((prev) => {
-              // If we already have this ID (from our optimistic update), 
-              // replace it with the real one to clear 'isOptimistic' flag.
               const exists = prev.find((m) => m.id === newMessage.id);
               if (exists) {
                 return prev.map((m) => (m.id === newMessage.id ? newMessage : m));

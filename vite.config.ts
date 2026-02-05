@@ -7,10 +7,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Include all static assets to be cached immediately
       includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png', 'robots.txt', 'apple-touch-icon.png'],
       
-      // Senior Workbox Config: This handles the "Offline Mode" logic
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         runtimeCaching: [

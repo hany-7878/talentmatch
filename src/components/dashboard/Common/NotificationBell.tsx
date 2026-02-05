@@ -1,5 +1,4 @@
 import { useState, useCallback, memo, useRef, useEffect } from 'react';
-// FIX: Use 'import type' for VerbatimModuleSyntax error
 import { useNotifications, type UserRole } from '../../../hooks/useNotifications';
 import { useAuth } from '../../../context/AuthContext';
 import { FaBell } from 'react-icons/fa';
@@ -13,8 +12,7 @@ export default function NotificationBell() {
   const containerRef = useRef<HTMLDivElement>(null);
   
   const role: UserRole = profile?.role?.toLowerCase() === 'manager' ? 'manager' : 'seeker';
-  
-  // Destructuring will now work because useNotifications return type is explicitly an object
+
   const { total, messages, invitations, applications, refresh, markMessagesRead } = useNotifications(user?.id, role);
 
   useEffect(() => {
@@ -40,9 +38,9 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={containerRef}>
-      <button 
+      <button title='Notifications' 
         onClick={() => setIsOpen(!isOpen)}
-        aria-expanded={isOpen ? "true" : "false"} // FIX: Ensure string value for ARIA
+        aria-expanded={isOpen ? "true" : "false"} 
         aria-haspopup="menu"
         aria-label={`${total} notifications`}
         className={`p-2.5 rounded-xl transition-all relative ${
@@ -60,7 +58,7 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {/* ARIA FIX: Menu structure */}
+      
       <div 
         role="menu"
         aria-hidden={!isOpen}
@@ -68,7 +66,7 @@ export default function NotificationBell() {
           isOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
         }`}
       >
-        {/* Header is not a menuitem, so wrap it or remove role requirements from children */}
+      
         <div className="px-4 pb-2 border-b border-slate-50 mb-2 flex justify-between items-center" role="none">
           <h4 className="text-[10px] font-black text-slate-400 uppercase">Activity Center</h4>
           <button 

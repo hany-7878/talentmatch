@@ -95,7 +95,6 @@ export default function SeekerView({ onApplicationSent, onNavigateToMessages }: 
         jobsQuery.ilike('title', `%${searchQuery}%`);
       }
 
-      // inside fetchDashboardData
 const [jobsRes, appsRes, invitesRes] = await Promise.all([
   jobsQuery,
   supabase.from('applications').select('project_id, status').eq('user_id', profile.id),
@@ -116,16 +115,15 @@ const [jobsRes, appsRes, invitesRes] = await Promise.all([
 
       if (jobsRes.error) throw jobsRes.error;
 
-      // --- CRITICAL FIX: MAP HANDSHAKES ---
+      
       const contactMap: Record<string, HandshakeInfo> = {};
 
 invitesRes.data?.forEach((inv: any) => {
-  // 1. Check for 'accepted' status
-  // 2. Ensure 'projects' exists (it might be an array or object depending on your SDK version)
+  
   const project = Array.isArray(inv.projects) ? inv.projects[0] : inv.projects;
   
   if (inv.status?.toLowerCase() === 'accepted' && project) {
-    // Handle the nested profile from manager_id
+   
     const manager = Array.isArray(project.profiles) ? project.profiles[0] : project.profiles;
 
     if (manager) {
@@ -172,10 +170,8 @@ invitesRes.data?.forEach((inv: any) => {
   }, [searchQuery]);
 
   const filteredJobs = useMemo(() => {
-    // Start with search filtering
     let jobs = availableJobs.filter(j => j.title?.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    // Filter by Tab
+   
     if (activeTab === 'connections') {
       jobs = jobs.filter(j => handshakes[j.id]);
     } else if (activeTab === 'applied') {
@@ -186,7 +182,6 @@ invitesRes.data?.forEach((inv: any) => {
       jobs = jobs.filter(j => savedJobs.includes(j.id));
     }
 
-    // Sort: Pending invites at the top
     return [...jobs].sort((a, b) => {
       const aInv = myInvitations.some(i => i.project_id === a.id && i.status === 'pending') ? 1 : 0;
       const bInv = myInvitations.some(i => i.project_id === b.id && i.status === 'pending') ? 1 : 0;
@@ -264,13 +259,13 @@ invitesRes.data?.forEach((inv: any) => {
   };
 
  const handleDeclineInvitation = async (projectId: string) => {
-  // 1. Guard: Ensure the user is actually authenticated
+ 
   if (!profile?.id) {
     toast.error("Session expired. Please log in again.");
     return;
   }
 
-  // 2. Confirmation (Standard for destructive actions)
+
   if (!window.confirm("Decline this project invitation?")) return;
 
   const loadingToast = toast.loading("Removing invitation...");
@@ -280,11 +275,10 @@ invitesRes.data?.forEach((inv: any) => {
       .from('invitations')
       .delete()
       .eq('project_id', projectId)
-      .eq('seeker_id', profile.id); // No more '?' - we guarded against undefined above
+      .eq('seeker_id', profile.id); 
 
     if (error) throw error;
 
-    // 3. UI Update: Remove from local state immediately
     setMyInvitations(prev => prev.filter(inv => inv.project_id !== projectId));
     
     toast.success("Invitation removed", { id: loadingToast });
@@ -295,17 +289,14 @@ invitesRes.data?.forEach((inv: any) => {
 };
 
   const handleWithdraw = async (projectId: string) => {
-    // 1. Guard against undefined profile
     if (!profile?.id) return toast.error("Please log in to manage applications");
-
-    // 2. Add confirmation for better UX
     if (!window.confirm("Are you sure you want to withdraw?")) return;
 
     const { error } = await supabase
       .from('applications')
       .delete()
       .eq('project_id', projectId)
-      .eq('user_id', profile.id); // 'profile.id' is now safe here
+      .eq('user_id', profile.id); 
 
     if (!error) {
       setMyApplications(prev => prev.filter(app => app.project_id !== projectId));

@@ -5,6 +5,7 @@ import {
   FaShieldAlt, FaBell, FaQuestionCircle, FaCommentAlt, 
   FaBug, FaExternalLinkAlt, FaTimes, FaLightbulb 
 } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
 
 export default function GeneralSettings() {
   const { user, profile, refreshProfile } = useAuth();
@@ -24,29 +25,49 @@ export default function GeneralSettings() {
     two_factor: false
   });
 
-  useEffect(() => {
-    if (profile?.settings) {
-      setSettings(prev => ({ ...prev, ...profile.settings }));
-    }
-  }, [profile]);
+ useEffect(() => {
+  if (profile?.settings && typeof profile.settings === 'object') {
+    setSettings(prev => ({ 
+      ...prev, 
+      ...(profile.settings as Record<string, any>) // 
+    }));
+  }
+}, [profile]);
 
   const handleToggle = async (key: string) => {
-    const newSettings = { ...settings, [key]: !settings[key as keyof typeof settings] };
-    setSettings(newSettings); 
-    
-    setLoading(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ settings: newSettings })
-      .eq('id', user?.id);
+  // 1. Guard Clause: Stop execution if user isn't logged in
+  if (!user?.id) {
+    toast.error("User session not found");
+    return;
+  }
 
-    if (!error) {
-      await refreshProfile();
-      setMessage('Preferences updated live');
-      setTimeout(() => setMessage(''), 3000);
-    }
-    setLoading(false);
+  // 2. Optimistic Update: Update UI immediately for zero-lag feel
+  const newSettings = { 
+    ...settings, 
+    [key]: !settings[key as keyof typeof settings] 
   };
+  setSettings(newSettings); 
+  
+  setLoading(true);
+  
+  // 3. Database Sync
+  const { error } = await supabase
+    .from('profiles')
+    .update({ settings: newSettings })
+    .eq('id', user.id); // TS now knows user.id is a string because of the guard
+
+  if (!error) {
+    await refreshProfile();
+    setMessage('Preferences updated live');
+    setTimeout(() => setMessage(''), 3000);
+  } else {
+    // Rollback UI if the DB update fails
+    setSettings(settings);
+    toast.error("Failed to sync preferences");
+  }
+  
+  setLoading(false);
+};
 
   const submitFeedback = async (e: React.FormEvent) => {
     e.preventDefault();

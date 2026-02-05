@@ -1,12 +1,12 @@
 import { 
   FaThLarge, FaBriefcase, FaUsers,   
-  FaCog, FaBars, FaTimes, FaUserCircle, FaRocket, FaPaperPlane, FaComments
+  FaCog, FaTimes, FaUserCircle, FaRocket, FaPaperPlane, FaComments
 } from 'react-icons/fa';
-import { useMemo } from 'react'; // Removed local useState to fix the conflict
+import { useMemo } from 'react'; 
 
 interface SidebarProps {
-  isOpen: boolean;        // Synced with Dashboard
-  onClose: () => void;    // Synced with Dashboard
+  isOpen: boolean;       
+  onClose: () => void;    
   role: 'manager' | 'seeker';
   activeTab: string; 
   onTabChange: (tab: string) => void;
@@ -15,8 +15,8 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ 
-  isOpen,                 // Using Prop instead of State
-  onClose,                // Using Prop instead of State
+  isOpen,                 
+  onClose,                
   role, 
   activeTab, 
   onTabChange, 
@@ -66,12 +66,11 @@ export default function Sidebar({
 
   const handleTabClick = (tab: string) => {
     onTabChange(tab);
-    onClose(); // Uses the parent's close function
+    onClose();
   };
 
   return (
     <>
-      {/* Backdrop - Now correctly uses props */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-slate-950/60 z-[70] lg:hidden backdrop-blur-md animate-in fade-in duration-300"

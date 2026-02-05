@@ -9,7 +9,7 @@ const MAX_FILE_SIZE_MB = 5;
 export default function MessageInput({ text, setText, onSend, onTyping, isSending }: MessageInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null); 
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -84,7 +84,7 @@ export default function MessageInput({ text, setText, onSend, onTyping, isSendin
             <p className="text-[10px] text-white font-bold truncate">{selectedFile.name}</p>
             <p className="text-[8px] text-slate-500 uppercase font-black">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
           </div>
-          <button type="button" onClick={clearFile} className="p-2 text-slate-500 hover:text-red-400 transition-colors">
+          <button title='Clear file' type="button" onClick={clearFile} className="p-2 text-slate-500 hover:text-red-400 transition-colors">
             <FaTimes size={12} />
           </button>
         </div>
@@ -114,17 +114,17 @@ export default function MessageInput({ text, setText, onSend, onTyping, isSendin
         
         <div className="flex items-center justify-between p-1">
           <div className="flex items-center gap-1">
-            <input 
+            <input title='Upload file attachment' 
               type="file" 
               ref={fileInputRef} 
               onChange={handleFileChange} 
               className="hidden" 
               accept="image/*,application/pdf,.doc,.docx"
             />
-            <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2.5 text-slate-500 hover:text-indigo-400 transition-colors">
+            <button title='Upload file attachment' type="button" onClick={() => fileInputRef.current?.click()} className="p-2.5 text-slate-500 hover:text-indigo-400 transition-colors">
               <FaPaperclip size={14} />
             </button>
-            <button type="button" className="p-2.5 text-slate-500 hover:text-yellow-500 transition-colors">
+            <button title='Emoji picker' type="button" className="p-2.5 text-slate-500 hover:text-yellow-500 transition-colors">
               <FaSmile size={14} />
             </button>
           </div>

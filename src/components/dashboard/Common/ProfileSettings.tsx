@@ -43,11 +43,7 @@ export default function ProfileSettings() {
     resume_url: '', email: '', phone: '', company_name: '',
   });
 
-  /**
-   * 1. SYNC LOGIC
-   * Maps the profile object from AuthContext to the local form state.
-   * Defensive: Watches profile?.id to ensure we only sync when data actually exists.
-   */
+
   useEffect(() => {
     if (!profile?.id) return;
 
@@ -69,12 +65,7 @@ export default function ProfileSettings() {
       resume_url: profile.resume_url || '',
       company_name: profile.company_name || '',
     });
-  }, [profile?.id]); // Senior Note: Only trigger on ID change to avoid infinite loops
-
-  /**
-   * 2. DATA PERSISTENCE (INTERNAL HELPER)
-   * The "Engine" for updating the database.
-   */
+  }, [profile?.id]); 
   const performUpdate = async (updatePayload: Partial<Profile>) => {
     if (!profile?.id) {
       throw new Error("Session expired or profile ID missing. Please refresh.");
@@ -107,7 +98,6 @@ export default function ProfileSettings() {
         website_url: formData.website_url.trim(),
         experience_level: formData.experience_level,
         updated_at: new Date().toISOString(),
-        // Convert strings back to Arrays for the DB
         skills: formData.skills.split(',').map(s => s.trim()).filter(Boolean),
         languages: formData.languages.split(',').map(l => l.trim()).filter(Boolean)
       };
@@ -147,14 +137,13 @@ export default function ProfileSettings() {
       alert(`Upload failed: ${error.message}`);
     } finally {
       setUploading(false);
-      if (event.target) event.target.value = ''; // Reset input
+      if (event.target) event.target.value = ''; 
     }
   };
 
   const handleViewResume = async () => {
     if (!formData.resume_url) return;
     try {
-      // Extracts the relative path from the public URL
       const path = formData.resume_url.split(`/${'resumes'}/`)[1];
       const { data, error } = await supabase.storage.from('resumes').createSignedUrl(path, 60);
       if (error) throw error;
@@ -164,11 +153,7 @@ export default function ProfileSettings() {
     }
   };
 
-  /**
-   * 4. MASTER GUARD
-   * If the profile isn't loaded, we stop the render. 
-   * This prevents the "undefined" API call entirely.
-   */
+  // --- LOADING STATE ---
   if (!profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">

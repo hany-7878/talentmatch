@@ -18,7 +18,7 @@ export function useChatRoom(projectId: string | undefined, userId: string | unde
   useEffect(() => {
     if (!projectId) return;
 
-    // Fetch initial messages with reactions joined
+    
     const fetchInitial = async () => {
       const { data } = await supabase
         .from('messages')
@@ -35,15 +35,13 @@ export function useChatRoom(projectId: string | undefined, userId: string | unde
         event: '*', schema: 'public', table: 'messages', filter: `project_id=eq.${projectId}` 
       }, async (payload) => {
         if (payload.eventType === 'INSERT') {
-          // Re-fetch or manually append with empty reactions
           setMessages(prev => [...prev, { ...payload.new, reactions: [] }]);
         }
       })
       .on('postgres_changes', { 
         event: '*', schema: 'public', table: 'message_reactions' 
       }, () => {
-        // Simple strategy: Re-sync reactions on change
-        // Advanced: Match the reaction payload to specific message
+
         fetchInitial(); 
       })
       .on('broadcast', { event: 'typing' }, ({ payload }) => {

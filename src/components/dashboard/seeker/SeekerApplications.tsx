@@ -3,13 +3,12 @@ import { supabase } from '../../../lib/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
 import JobDetailView from '../Common/JobDetailView'; 
 import { FaClock, FaCheckCircle, FaChevronRight, FaTrashAlt, FaExclamationTriangle } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
 
 export default function SeekerApplications() {
   const { user } = useAuth();
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // MATCHING SEEKERVIEW LOGIC: Store the full project object
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
 
   const fetchApps = useCallback(async () => {
@@ -49,6 +48,10 @@ export default function SeekerApplications() {
 
   const handleWithdraw = async (projectId: string) => {
     if (!confirm("Withdraw this application?")) return;
+    if (!user?.id) {
+    toast.error("You must be logged in to perform this action");
+    return;
+  }
     
     const { error } = await supabase
       .from('applications')
@@ -60,7 +63,7 @@ export default function SeekerApplications() {
       alert("Error: " + error.message);
     } else {
       setApplications(prev => prev.filter(app => app.project_id !== projectId));
-      setSelectedJob(null); // Close view if withdrawing from inside DetailView
+      setSelectedJob(null); 
     }
   };
 
@@ -72,7 +75,7 @@ export default function SeekerApplications() {
         userRole="SEEKER" 
         onBack={() => setSelectedJob(null)} 
         onApply={() => handleWithdraw(selectedJob.id)}
-        isApplied={true} // Since this is the "Applications" page, it's always true
+        isApplied={true} 
       />
     );
   }
@@ -96,7 +99,6 @@ export default function SeekerApplications() {
           applications.map((app) => (
             <div 
               key={app.id} 
-              // Set the full project object just like SeekerView
               onClick={() => setSelectedJob(app.projects)}
               className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all flex items-center justify-between group cursor-pointer"
             >

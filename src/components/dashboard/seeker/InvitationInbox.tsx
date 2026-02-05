@@ -6,7 +6,7 @@ import { useState } from 'react';
 export default function InvitationInbox() {
   const { user } = useAuth();
   const { invitations, loading, respondToInvitation } = useSeekerInvitations(user?.id);
-  // Track local processing to prevent double-clicks
+  
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   const handleAction = async (id: string, status: 'accepted' | 'declined') => {
@@ -44,7 +44,7 @@ export default function InvitationInbox() {
       ) : (
         <div className="grid gap-6">
           {invitations.map((inv) => {
-            // DEFENSIVE: Fallback if Supabase join fails to find the project
+          
             const project = inv.projects;
             if (!project) return null;
 

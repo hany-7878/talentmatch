@@ -6,7 +6,6 @@ import Dashboard from './pages/Dashboard';
 import { Link } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import InstallBanner from './components/InstallBanner'; 
-// 1. Senior Loading State: "The App Shell" feel
 const FullPageLoader = () => (
   <div className="h-dvh bg-slate-50 flex items-center justify-center p-safe-top p-safe-bottom">
     <div className="flex flex-col items-center gap-4">
@@ -32,7 +31,7 @@ function App() {
   return (
     <div className="safe-h-screen overscroll-contain selection:bg-indigo-100">
       <Toaster 
-        position="top-center" // Better for PWA/Mobile
+        position="top-center" 
         toastOptions={{
           className: 'rounded-2xl font-bold text-sm shadow-2xl border border-gray-100',
           duration: 3000,
@@ -40,10 +39,7 @@ function App() {
       />
       
       <Routes>
-        {/* Redirect logic: If logged in, "/" takes you to Dashboard. If not, Landing. */}
         <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
-        
-        {/* Explicit Auth Route */}
         <Route path="/auth" element={!user ? <AuthForm /> : <Navigate to="/dashboard" replace />} />
         
         <Route 
@@ -55,11 +51,10 @@ function App() {
           } 
         />
 
-        {/* Legacy Redirects */}
+    
         <Route path="/manager-dashboard" element={<Navigate to="/dashboard" replace />} />
         <Route path="/seeker-dashboard" element={<Navigate to="/dashboard" replace />} />
 
-        {/* 404 - Senior UI */}
         <Route path="*" element={
           <div className="h-dvh flex items-center justify-center p-6 text-center">
             <div>
@@ -73,7 +68,6 @@ function App() {
         } />
       </Routes>
 
-      {/* PWA Utility Components */}
       <InstallBanner />
     </div>
   );

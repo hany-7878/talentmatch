@@ -29,10 +29,10 @@ export default function MessageItem({ msg, isOwn, currentUserId, onReact }: any)
           isHovered ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 pointer-events-none'
         }`}>
           {EMOJIS.map((e, i) => (
-            <button 
+            <button title='React to message'
               key={e} 
               onClick={() => onReact(msg.id, e)} 
-              style={{ transitionDelay: `${i * 30}ms` }} // Staggered pop-in effect
+              style={{ transitionDelay: `${i * 30}ms` }}
               className="hover:scale-130 hover:bg-slate-800 p-2 rounded-lg transition-all active:scale-90"
             >
               <span className="drop-shadow-sm text-sm md:text-base">{e}</span>
@@ -90,7 +90,7 @@ export default function MessageItem({ msg, isOwn, currentUserId, onReact }: any)
         {/* 5. Timestamp and Read Receipt */}
         <div className={`flex items-center gap-2 mt-1.5 opacity-40 text-[9px] font-bold tracking-tight ${isOwn ? 'flex-row' : 'flex-row-reverse'}`}>
           <span className="uppercase">{format(new Date(msg.created_at), 'p')}</span>
-          {isMe && (
+          {isOwn && (
             <FaCheckDouble 
               size={9} 
               className={msg.is_read ? 'text-indigo-400' : 'text-slate-500'} 

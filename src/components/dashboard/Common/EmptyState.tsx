@@ -1,4 +1,4 @@
-import React from 'react';
+
 import type { IconType } from 'react-icons';
 
 interface EmptyStateProps {

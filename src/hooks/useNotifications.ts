@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export type UserRole = 'manager' | 'seeker';
@@ -38,12 +38,11 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
               .eq('user_id', userId)
               .neq('status', 'pending'),
 
-        // 3. Unread Messages (where I am NOT the sender)
         supabase.from(TABLE.MESSAGES)
           .select('id', { count: 'exact', head: true })
           .eq('is_read', false)
-          .neq('sender_id', userId) // Logic: If I didn't send it and it's unread, it's a notification for me
-          .eq('receiver_id', userId) // Added back for strictness, ensure this column exists!
+          .neq('sender_id', userId) 
+          .eq('receiver_id', userId) 
       ]);
 
       setCounts({
@@ -62,8 +61,6 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
 
     fetchAllCounts();
 
-    // Listen for any changes on these tables. 
-    // We fetch fresh counts whenever a relevant change happens.
     const channel = supabase.channel(`notifs_${userId}`)
       .on('postgres_changes', { 
         event: '*', 
@@ -89,8 +86,6 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
 
   const markMessagesRead = useCallback(async () => {
     if (!userId) return;
-    
-    // Optimistic UI update
     setCounts(prev => ({ ...prev, messages: 0 }));
 
     const { error } = await supabase
@@ -101,7 +96,7 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
 
     if (error) {
       console.error("Failed to mark messages as read:", error);
-      fetchAllCounts(); // Revert on failure
+      fetchAllCounts(); 
     }
   }, [userId, fetchAllCounts]);
 

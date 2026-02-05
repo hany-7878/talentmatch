@@ -91,7 +91,6 @@ const handleActionRefresh = () => {
   if (!profile) return null;
 
   return (
-    /* UPGRADE: Use h-dvh and overscroll-contain for that "Locked App" feel */
     <div className="flex h-dvh w-full bg-slate-50 overflow-hidden font-sans selection:bg-indigo-100 overscroll-contain">
       
       <Sidebar
@@ -108,7 +107,6 @@ const handleActionRefresh = () => {
       />
 
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative h-full">
-        {/* UPGRADE: Sticky Header with p-safe-top to avoid mobile notches */}
         <header className="h-20 sm:h-24 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 px-4 sm:px-8 flex justify-between items-center sticky top-0 z-40 pt-safe-top">
           <div className="flex items-center gap-4 sm:gap-6">
             <button 
@@ -161,24 +159,20 @@ const handleActionRefresh = () => {
           </div>
         </header>
 
-        {/* VIEWPORT CONTENT */}
+      
         <div className="flex-1 relative overflow-hidden bg-slate-50/50">
           <Suspense fallback={<LoadingState />}>
-            {/* UPGRADE: Added no-scrollbar and p-safe-bottom for iOS/PWA bottom bars */}
             <div 
                ref={scrollRef} 
                onScroll={handleScroll} 
                className="h-full overflow-y-auto scrolling-touch no-scrollbar pb-safe-bottom"
             >
               <div className="p-4 sm:p-8 max-w-[1600px] mx-auto min-h-full">
-                {/* UPGRADE: Slightly increased slide-in duration for more "app-like" smoothness */}
                 <div className="animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
                   
                   {activeTab === DASHBOARD_TABS.MESSAGES && <MessagingView />}
                {activeTab === DASHBOARD_TABS.PROFILE && <ProfileSettings />}
                {activeTab === DASHBOARD_TABS.SETTINGS && <GeneralSettings />}
-                  
-                  {/* LOGIC PRESERVED: Role-based rendering */}
                   {currentRole === 'manager' && [
                     DASHBOARD_TABS.PIPELINE, 
                     DASHBOARD_TABS.DISCOVERY, 
@@ -209,7 +203,6 @@ const handleActionRefresh = () => {
                 </div>
               </div>
 
-              {/* LOGIC PRESERVED: Scroll to top with upgrade safe area margin */}
               {showScrollTop && (
                 <button
                 title='scroll'

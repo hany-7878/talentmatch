@@ -1,4 +1,4 @@
-// src/utils/matching.ts
+
 export const calculateMatch = (userSkills: string[], jobRequirements: string[]): number => {
   if (!jobRequirements.length) return 0;
   

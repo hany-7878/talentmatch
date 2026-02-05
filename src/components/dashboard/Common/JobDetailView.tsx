@@ -38,9 +38,6 @@ export default function JobDetailView({
     }
   }, [confirmMode]);
 
- /* --- Inside JobDetailView.tsx --- */
-
-// Update the handleActionInternal to be more robust:
 const handleActionInternal = async () => {
   if (isClosed || isApplying) return;
 

@@ -40,28 +40,37 @@ export const chatService = {
     };
   },
 
-  async toggleReaction(messageId: string, emoji: string, userId: string) {
-    const { data: existing, error: fetchError } = await supabase
-      .from('message_reactions')
-      .select('id')
-      .match({ message_id: messageId, user_id: userId, emoji })
-      .maybeSingle();
+  // Replace your toggleReaction in chatService.ts with this:
+async toggleReaction(messageId: string, emoji: string, userId: string, fullName: string | null) {
+  // 1. Fetch current reactions from the 'messages' table (which TS knows exists)
+  const { data: message, error: fetchError } = await supabase
+    .from('messages')
+    .select('reactions')
+    .eq('id', messageId)
+    .single();
 
-    if (fetchError) throw fetchError;
+  if (fetchError) throw fetchError;
 
-    if (existing) {
-      return await supabase
-        .from('message_reactions')
-        .delete()
-        .eq('id', existing.id);
-    } else {
-      return await supabase
-        .from('message_reactions')
-        .insert({ 
-          message_id: messageId, 
-          emoji, 
-          user_id: userId 
-        });
-    }
+  const currentReactions = Array.isArray(message.reactions) ? (message.reactions as any[]) : [];
+  
+  const existingIndex = currentReactions.findIndex(
+    (r) => r.user_id === userId && r.emoji === emoji
+  );
+
+  let updatedReactions;
+  if (existingIndex > -1) {
+    updatedReactions = currentReactions.filter((_, i) => i !== existingIndex);
+  } else {
+    updatedReactions = [...currentReactions, { user_id: userId, emoji, full_name: fullName }];
   }
-};
+
+  // 2. Update the JSON column in the 'messages' table
+  const { error: updateError } = await supabase
+    .from('messages')
+    .update({ reactions: updatedReactions })
+    .eq('id', messageId);
+
+  if (updateError) throw updateError;
+
+  return updatedReactions;
+}}

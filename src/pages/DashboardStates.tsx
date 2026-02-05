@@ -1,11 +1,7 @@
-import React from 'react';
 
-/**
- * LoadingState: Used for the initial app launch.
- * Designed to look like a native splash screen.
- */
+
 export const LoadingState = () => (
-  // Using h-[100dvh] to prevent jumping when mobile browser chrome disappears
+ 
   <div className="flex items-center justify-center h-[100dvh] bg-slate-950">
     <div className="flex flex-col items-center">
       {/* Brand Icon Placeholder */}
@@ -35,13 +31,8 @@ interface FinalizingProps {
   onRefresh: () => void;
 }
 
-/**
- * FinalizingState: Used when profile data is being synced.
- * Optimized for thumb-reachability on mobile.
- */
 export const FinalizingState = ({ onRefresh }: FinalizingProps) => (
   <div className="flex items-end sm:items-center justify-center h-[100dvh] bg-slate-50">
-    {/* Card slides up from bottom on mobile for "Native Sheet" feel */}
     <div className="w-full sm:max-w-sm bg-white rounded-t-[3rem] sm:rounded-[3rem] p-8 sm:p-10 shadow-[0_-20px_50px_-20px_rgba(0,0,0,0.1)] border-t sm:border border-slate-100 animate-in slide-in-from-bottom-10 duration-700 pb-[calc(2rem+env(safe-area-inset-bottom))]">
       
       {/* Progress Graphic */}

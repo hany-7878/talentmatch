@@ -49,8 +49,7 @@ export default function MessagingView({ onRefreshNotifs }: MessagingViewProps) {
     full_name: string;
   }> | null;
 }
-  /* ================= 1. STABLE NOTIFICATION REF ================= */
-  // This prevents the "hook changed size" error by keeping the dependency array constant
+  
   const refreshRef = useRef(onRefreshNotifs);
   useEffect(() => {
     refreshRef.current = onRefreshNotifs;

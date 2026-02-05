@@ -4,10 +4,6 @@ import { supabase } from '../lib/supabaseClient';
 import type { User, Session } from '@supabase/supabase-js';
 import type { Profile } from '../types'; 
 
-/**
- * SENIOR REFACTOR: Define the interface explicitly to resolve the 'AuthContextType' error.
- * This ensures TypeScript knows exactly what the Context provides.
- */
 export interface AuthContextType {
   user: User | null;
   profile: Profile | null;
@@ -25,12 +21,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  /**
-   * REFRESH PROFILE
-   * Fixes the 400 Bad Request (id=eq.undefined)
-   */
   const refreshProfile = useCallback(async (userId?: string): Promise<Profile | null> => {
-    // Determine which ID to use: explicitly passed param > current state user > session user
+   
     const targetId = userId || user?.id;
 
     if (!targetId || targetId === 'undefined') {
@@ -57,17 +49,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("[AuthContext] Profile Fetch Error:", err);
       return null;
     }
-  }, [user?.id]); // Re-memoize when user ID changes
-
-  /**
-   * AUTH STATE HANDLER
-   * Consolidates session management and profile fetching.
-   */
+  }, [user?.id]); 
+  
   const handleAuthState = useCallback(async (currentSession: Session | null) => {
     if (currentSession?.user) {
       setSession(currentSession);
       setUser(currentSession.user);
-      // Ensure we have the profile before we stop the loading spinner
+      
       await refreshProfile(currentSession.user.id);
     } else {
       setSession(null);
@@ -78,12 +66,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [refreshProfile]);
 
   useEffect(() => {
-    // 1. INITIAL CHECK
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       handleAuthState(s);
     });
 
-    // 2. Listen for real-time auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       handleAuthState(s);
     });

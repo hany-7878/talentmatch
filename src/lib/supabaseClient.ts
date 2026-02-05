@@ -8,7 +8,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase configuration missing in .env');
 }
 
-// Pass the Database type as a generic here
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
