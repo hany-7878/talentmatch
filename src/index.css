@@ -8,18 +8,35 @@
   }
 
   html, body {
-    @apply overscroll-none overflow-hidden h-full;
+    /* Prevents the 'rubber-band' effect and keeps the app locked to the viewport */
+    @apply overscroll-none overflow-hidden;
     height: 100dvh; 
+    width: 100%;
+    position: fixed;
+  }
+
+  #root {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
   }
 }
 
 @layer utilities {
+  /* Layout Containers */
+  .app-layout {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100dvh;
+    width: 100%;
+  }
 
   .safe-h-screen {
     height: 100vh;
     height: 100dvh; 
   }
 
+  /* Safe Area Insets for Modern Phones (Notches/Home Bars) */
   .p-safe-top {
     padding-top: env(safe-area-inset-top, 0px);
   }
@@ -32,6 +49,16 @@
     margin-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  /* Sticky Glass Effect for Header/Footer */
+  .glass-header {
+    @apply sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-white/10 p-safe-top;
+  }
+
+  .glass-footer {
+    @apply sticky bottom-0 z-50 bg-slate-950/80 backdrop-blur-md border-t border-white/10 p-safe-bottom;
+  }
+
+  /* Scroll Management */
   .no-scrollbar {
     -ms-overflow-style: none;  
     scrollbar-width: none;  
@@ -39,15 +66,11 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+  
   .scrolling-touch {
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
-    @apply overflow-y-auto;
-  }
-
-  
-  .overscroll-contain {
-    overscroll-behavior: contain;
+    @apply overflow-y-auto overscroll-contain;
   }
 
   .carousel-mask {
@@ -55,7 +78,7 @@
     -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
   }
 
-  
+  /* PWA Standalone Mode Tweak */
   @media (display-mode: standalone) {
     .pwa-only-pt {
       padding-top: env(safe-area-inset-top, 20px);
