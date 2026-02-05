@@ -2,9 +2,11 @@ import {
   FaThLarge, FaBriefcase, FaUsers,   
   FaCog, FaBars, FaTimes, FaUserCircle, FaRocket, FaPaperPlane, FaComments
 } from 'react-icons/fa';
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react'; // Removed local useState to fix the conflict
 
 interface SidebarProps {
+  isOpen: boolean;        // Synced with Dashboard
+  onClose: () => void;    // Synced with Dashboard
   role: 'manager' | 'seeker';
   activeTab: string; 
   onTabChange: (tab: string) => void;
@@ -13,16 +15,16 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ 
+  isOpen,                 // Using Prop instead of State
+  onClose,                // Using Prop instead of State
   role, 
   activeTab, 
   onTabChange, 
   applicationCount = 0,
   messageCount = 0 
 }: SidebarProps) {
-  const [isOpen, setIsOpen] = useState(false);
 
   const links = useMemo(() => {
-    // Senior Logic: Helper to format badges so they don't break UI layout
     const formatBadge = (count: number) => (count > 99 ? '99+' : count);
 
     const messageLink = { 
@@ -42,7 +44,6 @@ export default function Sidebar({
           icon: <FaUsers />, 
           tab: 'discovery',
           badge: applicationCount > 0 ? formatBadge(applicationCount) : null,
-          // Updated: Invitations now trigger the pulse alert
           isAlert: applicationCount > 0 
         },
         { name: 'Outreach', icon: <FaPaperPlane />, tab: 'invites' }, 
@@ -57,7 +58,6 @@ export default function Sidebar({
         icon: <FaRocket />, 
         tab: 'applications',
         badge: applicationCount > 0 ? formatBadge(applicationCount) : null,
-        // Updated: Invitations now trigger the pulse alert
         isAlert: applicationCount > 0
       },
       messageLink,
@@ -66,27 +66,16 @@ export default function Sidebar({
 
   const handleTabClick = (tab: string) => {
     onTabChange(tab);
-    setIsOpen(false);
+    onClose(); // Uses the parent's close function
   };
 
   return (
     <>
-      {/* Mobile Toggle Trigger */}
-      <button 
-        title='Open Menu'
-        onClick={() => setIsOpen(true)}
-        className={`lg:hidden fixed top-6 left-6 z-[60] p-3 bg-indigo-600 text-white rounded-2xl shadow-xl transition-all active:scale-90 ${
-          isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
-        }`}
-      >
-        <FaBars size={18} />
-      </button>
-
-      {/* Backdrop */}
+      {/* Backdrop - Now correctly uses props */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-slate-950/60 z-[70] lg:hidden backdrop-blur-md animate-in fade-in duration-300"
-          onClick={() => setIsOpen(false)}
+          onClick={onClose} 
         />
       )}
 
@@ -97,52 +86,48 @@ export default function Sidebar({
         lg:relative lg:translate-x-0
       `}>
         
-        {/* Brand Header */}
-      {/* Sidebar Logo Header */}
-<div className="p-8">
-  <div className="flex items-center justify-between">
-    <div className="flex items-center gap-4">
-      {/* Logo Container: Square-circle (Squircle) design */}
-      <div className="relative w-12 h-12 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-700 p-0.5 shadow-xl shadow-indigo-500/20">
-        <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center overflow-hidden">
-          <img 
-            src="/talentMatch.png" 
-            alt="TalentMatch Logo" 
-            className="w-full h-full object-cover transform scale-110"
-            onError={(e) => {
-              // Fallback if image fails to load
-              e.currentTarget.style.display = 'none';
-              e.currentTarget.parentElement!.innerHTML = '<span class="text-white font-black italic">TM</span>';
-            }}
-          />
-        </div>
-      </div>
+        {/* Brand Header - FULL LOGIC KEPT */}
+        <div className="p-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="relative w-12 h-12 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-700 p-0.5 shadow-xl shadow-indigo-500/20">
+                <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center overflow-hidden">
+                  <img 
+                    src="/talentMatch.png" 
+                    alt="TalentMatch Logo" 
+                    className="w-full h-full object-cover transform scale-110"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.parentElement!.innerHTML = '<span class="text-white font-black italic">TM</span>';
+                    }}
+                  />
+                </div>
+              </div>
 
-      <div className="flex flex-col">
-        {/* We keep the text for branding but style it to look like part of the logo logotype */}
-        <span className="text-white font-black text-xl tracking-tighter leading-none">
-          TalentMatch
-        </span>
-        <div className="flex items-center gap-2 mt-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
-          <span className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
-            {role || 'Portal'}
-          </span>
-        </div>
-      </div>
-    </div>
+              <div className="flex flex-col">
+                <span className="text-white font-black text-xl tracking-tighter leading-none">
+                  TalentMatch
+                </span>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                  <span className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
+                    {role || 'Portal'}
+                  </span>
+                </div>
+              </div>
+            </div>
 
-    <button 
-      title="Close Sidebar" 
-      onClick={() => setIsOpen(false)} 
-      className="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl text-slate-500 hover:text-white hover:bg-white/5 transition-colors"
-    >
-      <FaTimes size={18} />
-    </button>
-  </div>
-</div>
+            <button 
+              title="Close Sidebar" 
+              onClick={onClose} 
+              className="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl text-slate-500 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              <FaTimes size={18} />
+            </button>
+          </div>
+        </div>
         
-        {/* Main Navigation */}
+        {/* Main Navigation - FULL LOGIC KEPT */}
         <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto mt-4 custom-scrollbar">
           <p className="text-[10px] uppercase tracking-widest text-slate-600 font-black mb-4 px-4">Workspace</p>
           
@@ -181,7 +166,7 @@ export default function Sidebar({
           ))}
         </nav>
 
-        {/* User Footer */}
+        {/* User Footer - FULL LOGIC KEPT */}
         <div className="p-4 bg-slate-950/50 border-t border-slate-800/50">
           <button 
             onClick={() => handleTabClick('profile')}

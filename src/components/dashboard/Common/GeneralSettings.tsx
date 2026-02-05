@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabaseClient';
-import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../../lib/supabaseClient';
+import { useAuth } from '../../../context/AuthContext';
 import { 
   FaShieldAlt, FaBell, FaQuestionCircle, FaCommentAlt, 
   FaBug, FaExternalLinkAlt, FaTimes, FaLightbulb 

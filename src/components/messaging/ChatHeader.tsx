@@ -13,7 +13,7 @@ export default function ChatHeader({ title, partnerName, status, role, onUpdateS
 
   return (
     <div className="flex flex-col w-full">
-      {/* 1. STATUS BANNER (Pending) - Only Seeker can Accept/Decline */}
+
       {status === 'pending' && !isManager && (
         <div className="bg-indigo-600 px-6 py-2.5 flex items-center justify-between z-10 shadow-xl animate-in slide-in-from-top duration-300">
           <div className="flex items-center gap-2 text-white">

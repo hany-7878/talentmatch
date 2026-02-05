@@ -4,16 +4,21 @@ import toast from 'react-hot-toast';
 
 interface Seeker { id: string; full_name: string; avatar_url?: string; }
 interface Invitation {
-  id: string; project_id: string; seeker_id: string; manager_id?: string;
+  id: string; 
+  project_id: string; 
+  seeker_id: string; 
+  manager_id?: string;
   status: 'pending' | 'accepted' | 'declined';
-  created_at: string; profiles?: any; projects?: any;
+  created_at: string; 
+  profiles?: any; 
+  projects?: any;
 }
 
 export function useInvitations(managerId: string | undefined) {
   const [sentInvitations, setSentInvitations] = useState<Invitation[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 1. DATA LOADER
+  // 1. DATA LOADER (Fixed Type Narrowing)
   const fetchInvitations = useCallback(async () => {
     if (!managerId) return;
     
@@ -27,7 +32,18 @@ export function useInvitations(managerId: string | undefined) {
       .eq('manager_id', managerId) 
       .order('created_at', { ascending: false });
     
-    if (!error) setSentInvitations(data || []);
+    if (!error && data) {
+      // Map and provide fallbacks to satisfy the Invitation interface
+      const sanitized = data.map((inv: any) => ({
+  ...inv,
+  project_id: inv.project_id ?? '',
+  seeker_id: inv.seeker_id ?? '',
+  // Tell TS this string is definitely one of our allowed statuses
+  status: (inv.status as 'pending' | 'accepted' | 'declined') || 'pending',
+})) as Invitation[];
+      
+      setSentInvitations(sanitized);
+    }
   }, [managerId]);
 
   // 2. REALTIME SYNC
@@ -48,7 +64,7 @@ export function useInvitations(managerId: string | undefined) {
     return () => { supabase.removeChannel(channel); };
   }, [managerId, fetchInvitations]);
 
-  // 3. THE "UPWORK" SEND LOGIC
+  // 3. SEND INVITATION
   const sendInvitation = async (jobId: string, seeker: Seeker) => {
     const { data: { session } } = await supabase.auth.getSession();
     const currentUserId = session?.user?.id || managerId;
@@ -62,7 +78,6 @@ export function useInvitations(managerId: string | undefined) {
     const loadingToast = toast.loading(`Inviting ${seeker.full_name}...`);
 
     try {
-      // Step A: Create the Invitation
       const { data, error } = await supabase
         .from('invitations')
         .upsert(
@@ -79,20 +94,28 @@ export function useInvitations(managerId: string | undefined) {
 
       if (error) throw error;
 
-      // Step B: Send the initial "Handshake" message automatically
-      // This ensures the chat room is ready immediately for the Manager to click "Message"
       await supabase.from('messages').insert({
         project_id: jobId,
         sender_id: currentUserId,
-        content: `Hi ${seeker.full_name}! I've invited you to collaborate on this project. Let's discuss the details here.`
+        content: `Hi ${seeker.full_name}! I've invited you to collaborate on this project.`
       });
 
-      setSentInvitations(prev => {
-        const filtered = prev.filter(inv => 
-          !(inv.project_id === jobId && inv.seeker_id === seeker.id)
-        );
-        return [data, ...filtered];
-      });
+      if (data) {
+  const sanitizedInv: Invitation = {
+    ...data,
+    project_id: data.project_id ?? '',
+    seeker_id: data.seeker_id ?? '',
+    // Convert null to undefined to satisfy the interface manager_id?: string
+    manager_id: data.manager_id ?? undefined, 
+    status: (data.status as 'pending' | 'accepted' | 'declined') || 'pending',
+    created_at: data.created_at
+  };
+
+  setSentInvitations(prev => {
+    const filtered = prev.filter(inv => inv.id !== sanitizedInv.id);
+    return [sanitizedInv, ...filtered];
+  });
+}
 
       toast.success('Invitation Sent!', { id: loadingToast });
       return true;
@@ -105,13 +128,9 @@ export function useInvitations(managerId: string | undefined) {
   };
 
   // 4. THE NAVIGATION BRIDGE
-  // Use this function in your UI for the "Message Seeker" button
   const goToMessage = (projectId: string, onNavigate: (tab: string) => void) => {
-    // 1. Set the URL param so MessagingView knows which chat to open
     const newUrl = `${window.location.pathname}?tab=messages&projectId=${projectId}`;
     window.history.pushState({}, '', newUrl);
-    
-    // 2. Switch the active tab
     onNavigate('messages');
   };
 
@@ -130,8 +149,8 @@ export function useInvitations(managerId: string | undefined) {
     sentInvitations, 
     sendInvitation, 
     withdrawInvitation, 
-    goToMessage, // Export the bridge function
+    goToMessage, 
     isSubmitting, 
     fetchInvitations 
   };
-}
+} 

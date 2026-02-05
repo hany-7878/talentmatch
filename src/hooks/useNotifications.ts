@@ -10,33 +10,24 @@ const TABLE = {
 } as const;
 
 export function useNotifications(userId: string | undefined, role: UserRole) {
-  const [counts, setCounts] = useState({
-    invitations: 0,
-    applications: 0,
-    messages: 0,
-  });
+  const [counts, setCounts] = useState({ invitations: 0, applications: 0, messages: 0 });
   const [error, setError] = useState<string | null>(null);
-
-  const fetchRef = useRef<() => Promise<void>>();
-  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
-
-  const total = useMemo(() => 
-    counts.invitations + counts.applications + counts.messages, 
-  [counts]);
-
+  
+  // Ref helps prevent stale closures in the subscription callback
   const fetchAllCounts = useCallback(async () => {
-    if (!userId || userId === '') return;
-    const isManager = role === 'manager';
-
+    if (!userId) return;
+    
     try {
-      const results = await Promise.allSettled([
-        // 1. Invitations (Pending)
+      const isManager = role === 'manager';
+      
+      const [invRes, appRes, msgRes] = await Promise.all([
+        // 1. Pending Invitations (sent to seeker or from manager)
         supabase.from(TABLE.INVITATIONS)
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pending')
           .eq(isManager ? 'manager_id' : 'seeker_id', userId),
-
-        // 2. Applications (Manager sees pending incoming, Seeker sees their own)
+        
+        // 2. Pending Applications (Managers see new, Seekers see updates)
         isManager 
           ? supabase.from(TABLE.APPLICATIONS)
               .select('id, projects!inner(manager_id)', { count: 'exact', head: true })
@@ -44,88 +35,62 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
               .eq('status', 'pending')
           : supabase.from(TABLE.APPLICATIONS)
               .select('id', { count: 'exact', head: true })
-              .eq('user_id', userId),
+              .eq('user_id', userId)
+              .neq('status', 'pending'),
 
-        // 3. Unread Messages
+        // 3. Unread Messages (where I am NOT the sender)
         supabase.from(TABLE.MESSAGES)
           .select('id', { count: 'exact', head: true })
           .eq('is_read', false)
-          .eq('receiver_id', userId)
+          .neq('sender_id', userId) // Logic: If I didn't send it and it's unread, it's a notification for me
+          .eq('receiver_id', userId) // Added back for strictness, ensure this column exists!
       ]);
 
-      const extracted = results.map(res => {
-        if (res.status === 'fulfilled' && !res.value.error) return res.value.count || 0;
-        return 0;
-      });
-
       setCounts({
-        invitations: extracted[0],
-        applications: extracted[1],
-        messages: extracted[2],
+        invitations: invRes.count || 0,
+        applications: appRes.count || 0,
+        messages: msgRes.count || 0,
       });
-      setError(null);
     } catch (err) {
-      setError("Failed to sync notifications");
+      console.error("Notification Sync Error:", err);
+      setError("Sync failed");
     }
   }, [userId, role]);
-
-  fetchRef.current = fetchAllCounts;
-
-  const debouncedRefresh = useCallback(() => {
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(() => {
-      fetchRef.current?.();
-    }, 300);
-  }, []);
 
   useEffect(() => {
     if (!userId) return;
 
     fetchAllCounts();
 
-    const channel = supabase.channel(`notifs:${userId}`);
-
-    // --- 1. MESSAGES LISTENER ---
-    channel.on('postgres_changes', { 
-      event: '*', 
-      schema: 'public', 
-      table: TABLE.MESSAGES, 
-      filter: `receiver_id=eq.${userId}` 
-    }, (payload) => {
-      if (payload.eventType === 'INSERT' && !payload.new.is_read) {
-        setCounts(prev => ({ ...prev, messages: prev.messages + 1 }));
-      } else if (payload.eventType === 'UPDATE' && payload.new.is_read && !payload.old.is_read) {
-        setCounts(prev => ({ ...prev, messages: Math.max(0, prev.messages - 1) }));
-      } else {
-        debouncedRefresh();
-      }
-    });
-
-  
-    channel.on('postgres_changes', { 
-      event: '*', 
-      schema: 'public', 
-      table: TABLE.INVITATIONS 
-    }, debouncedRefresh);
-
-    channel.on('postgres_changes', { 
-      event: '*', 
-      schema: 'public', 
-      table: TABLE.APPLICATIONS 
-    }, debouncedRefresh);
-
-    channel.subscribe();
+    // Listen for any changes on these tables. 
+    // We fetch fresh counts whenever a relevant change happens.
+    const channel = supabase.channel(`notifs_${userId}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: TABLE.MESSAGES 
+      }, () => fetchAllCounts())
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: TABLE.APPLICATIONS 
+      }, () => fetchAllCounts())
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: TABLE.INVITATIONS 
+      }, () => fetchAllCounts())
+      .subscribe();
 
     return () => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
       supabase.removeChannel(channel);
     };
-  }, [userId, role, debouncedRefresh, fetchAllCounts]);
+  }, [userId, fetchAllCounts]);
 
   const markMessagesRead = useCallback(async () => {
-    if (!userId || counts.messages === 0) return;
-    const previousMessages = counts.messages;
+    if (!userId) return;
     
+    // Optimistic UI update
     setCounts(prev => ({ ...prev, messages: 0 }));
 
     const { error } = await supabase
@@ -133,18 +98,22 @@ export function useNotifications(userId: string | undefined, role: UserRole) {
       .update({ is_read: true })
       .eq('receiver_id', userId)
       .eq('is_read', false);
-    
-    if (error) {
-      setCounts(prev => ({ ...prev, messages: previousMessages }));
-      setError("Could not mark messages as read");
-    }
-  }, [userId, counts.messages]);
 
-  return { 
-    ...counts, 
-    total, 
+    if (error) {
+      console.error("Failed to mark messages as read:", error);
+      fetchAllCounts(); // Revert on failure
+    }
+  }, [userId, fetchAllCounts]);
+
+  const total = useMemo(() => 
+    counts.invitations + counts.applications + counts.messages, 
+  [counts]);
+
+  return {
+    ...counts,
+    total,
     error,
     refresh: fetchAllCounts,
-    markMessagesRead 
+    markMessagesRead
   };
 }

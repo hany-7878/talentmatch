@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FaUserTie, FaUser, FaTimes } from 'react-icons/fa';
+import { FaUserTie, FaUser, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom'; 
 import { supabase } from '../lib/supabaseClient'; 
 
@@ -9,12 +9,15 @@ export default function AuthForm() {
   const navigate = useNavigate();
   
   const [isLogin, setIsLogin] = useState(true);
-  const [isForgotPassword, setIsForgotPassword] = useState(false); // Added toggle
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [role, setRole] = useState<Role>('seeker');
   const [showPolicy, setShowPolicy] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState(""); // Added for success feedback
+  const [message, setMessage] = useState(""); 
   const [isLoading, setIsLoading] = useState(false);
+  
+  // State to toggle password visibility
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     fullName: '', 
@@ -34,7 +37,6 @@ export default function AuthForm() {
     setIsLoading(true);
 
     try {
-      // Logic for Forgot Password
       if (isForgotPassword) {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
           redirectTo: `${window.location.origin}/auth?type=recovery`,
@@ -45,7 +47,6 @@ export default function AuthForm() {
         return;
       }
 
-      // Your original Auth Logic
       const { data, error: authError } = isLogin 
         ? await supabase.auth.signInWithPassword({ email: formData.email, password: formData.password })
         : await supabase.auth.signUp({ 
@@ -78,7 +79,7 @@ export default function AuthForm() {
         </p>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm rounded-r-lg animate-shake">
+          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm rounded-r-lg">
             {error}
           </div>
         )}
@@ -145,32 +146,44 @@ export default function AuthForm() {
 
           {!isForgotPassword && (
             <div className={`grid ${isLogin ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <input
-                  name="password"
-                  type="password"
-                  required
-                  disabled={isLoading}
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  className="w-full border border-gray-200 px-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none transition-all disabled:bg-gray-50"
-                />
-              </div>
-              {!isLogin && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm</label>
+                <div className="relative">
                   <input
-                    name="confirmPassword"
-                    type="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     disabled={isLoading}
-                    value={formData.confirmPassword}
+                    value={formData.password}
                     onChange={handleChange}
                     placeholder="••••••••"
                     className="w-full border border-gray-200 px-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none transition-all disabled:bg-gray-50"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-500"
+                  >
+                    {showPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+              </div>
+
+              {!isLogin && (
+                <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm</label>
+                  <div className="relative">
+                    <input
+                      name="confirmPassword"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      disabled={isLoading}
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      className="w-full border border-gray-200 px-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none transition-all disabled:bg-gray-50"
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -209,7 +222,7 @@ export default function AuthForm() {
             <button 
               type="button"
               onClick={() => setIsForgotPassword(false)}
-              className="text-sm text-gray-500 hover:text-gray-800 transition-colors"
+              className="text-sm text-gray-500 hover:text-gray-800 transition-colors mx-auto"
             >
               Back to Login
             </button>
@@ -238,7 +251,7 @@ export default function AuthForm() {
         </button>
       </div>
 
-      {/* Policy Drawer remains unchanged */}
+      {/* Policy Drawer */}
       <div 
         className={`fixed top-0 right-0 h-full w-80 md:w-96 bg-white shadow-2xl z-50 p-8 transform transition-transform duration-300 ease-in-out ${
           showPolicy ? 'translate-x-0' : 'translate-x-full'
@@ -246,8 +259,7 @@ export default function AuthForm() {
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-gray-800">Legal Info</h2>
-          <button 
-            title='time'
+          <button title='Close Policy Drawer'
             onClick={() => setShowPolicy(false)} 
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >

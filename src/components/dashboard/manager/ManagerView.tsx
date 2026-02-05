@@ -12,12 +12,21 @@ import PostJobModal from './PostJobModal';
 import toast from 'react-hot-toast';
 import ApplicantSlideOver from './ApplicantSlideOver';
 import { useInvitations } from './useInvitations';
-export default function ManagerView({ initialView, onNavigateToMessages }: { initialView?: string;
-  onNavigateToMessages: (projectId: string, recipientId: string) => void;
-}) {
 
-  
-  // 1. ALL STATES
+interface ManagerViewProps {
+  initialView: string;
+  onNavigateToMessages: (projectId: string, recipientId: string) => void;
+  onTabChange: (tab: any) => void;
+  onActionComplete?: () => void;
+}
+
+export default function ManagerView({ 
+  initialView, 
+  onNavigateToMessages, 
+  onTabChange,
+  onActionComplete
+}: ManagerViewProps) {
+
   const [viewMode, setViewMode] = useState<string>('pipeline');
   const [user, setUser] = useState<any>(null);
   const [applicants, setApplicants] = useState<any[]>([]);
@@ -32,8 +41,6 @@ export default function ManagerView({ initialView, onNavigateToMessages }: { ini
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [targetSeeker, setTargetSeeker] = useState<any | null>(null);
   const [myJobs, setMyJobs] = useState<any[]>([]);
-  
-  // NEW: Project-specific scouting state
   const [scoutingForJobId, setScoutingForJobId] = useState<string>('');
 
   const [newJob, setNewJob] = useState({ 
@@ -41,7 +48,6 @@ export default function ManagerView({ initialView, onNavigateToMessages }: { ini
     location_type: 'remote', category: 'Engineering', is_priority: false, deadline: '',
   });
 
-  // 2. INITIALIZE HOOK
   const { 
     sentInvitations, 
     sendInvitation, 
@@ -49,6 +55,18 @@ export default function ManagerView({ initialView, onNavigateToMessages }: { ini
     isSubmitting: isInviting, 
     fetchInvitations 
   } = useInvitations(user?.id); 
+
+  const handleInternalTabChange = (tab: string) => {
+    setViewMode(tab);
+    onTabChange(tab);
+  };
+
+  const calculateMatch = (seekerSkills: string[], jobRequirements: string[]) => {
+    if (!jobRequirements || jobRequirements.length === 0) return 70;
+    const seekerSet = new Set(seekerSkills.map(s => s.toLowerCase()));
+    const matches = jobRequirements.filter(req => seekerSet.has(req.toLowerCase()));
+    return Math.min(Math.max(Math.round((matches.length / jobRequirements.length) * 100), 15), 98); 
+  };
 
   const canChat = useCallback((projectId: string, seekerId: string) => {
     return sentInvitations.some(
@@ -58,117 +76,76 @@ export default function ManagerView({ initialView, onNavigateToMessages }: { ini
     );
   }, [sentInvitations]);
 
-  const calculateMatch = (seekerSkills: string[], jobRequirements: string[]) => {
-  if (!jobRequirements || jobRequirements.length === 0) return 70; // Baseline
-  
-  const seekerSet = new Set(seekerSkills.map(s => s.toLowerCase()));
-  const matches = jobRequirements.filter(req => seekerSet.has(req.toLowerCase()));
-  
-  // Calculate percentage
-  const score = (matches.length / jobRequirements.length) * 100;
-  
-  // Return score, capped at 98 (to keep it looking "calculated")
-  return Math.min(Math.max(Math.round(score), 15), 98); 
-};
-
-
-
   const fetchData = useCallback(async () => {
-  setLoading(true);
-  try {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) return;
-    setUser(authUser);
+    setLoading(true);
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+      setUser(authUser);
 
-    const [seekersRes, jobsRes, appsRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('role', 'SEEKER'),
-      supabase.from('projects').select('*', { count: 'exact' }).eq('manager_id', authUser.id).eq('status', 'open'),
-      supabase.from('applications').select(`
-          *,
-          profiles:applications_user_id_fkey (id, full_name, avatar_url, skills, bio, email),
-          projects:project_id!inner (id, title, requirements)
-        `).eq('projects.manager_id', authUser.id).order('created_at', { ascending: false }),
-      fetchInvitations()
-    ]);
+      const [seekersRes, jobsRes, appsRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('role', 'SEEKER'),
+        supabase.from('projects').select('*', { count: 'exact' }).eq('manager_id', authUser.id).eq('status', 'open'),
+        supabase.from('applications').select(`
+            *,
+            profiles:applications_user_id_fkey (id, full_name, avatar_url, skills, bio, email),
+            projects:project_id!inner (id, title, requirements)
+          `).eq('projects.manager_id', authUser.id).order('created_at', { ascending: false }),
+        fetchInvitations()
+      ]);
 
-    // CALCULATE MATCHES HERE
-    const formatted = appsRes.data?.map((app: any) => ({
-      ...app,
-      name: app.profiles?.full_name || 'Anonymous',
-      role: app.projects?.title || 'Unknown Position',
-      // We use your calculateMatch function here
-      match: calculateMatch(app.profiles?.skills || [], app.projects?.requirements || []),
-      project_id: app.project_id 
-    })) || [];
+      const fetchedJobs = jobsRes.data || [];
+      const formatted = appsRes.data?.map((app: any) => ({
+        ...app,
+        name: app.profiles?.full_name || 'Anonymous',
+        role: app.projects?.title || 'Unknown Position',
+        match: calculateMatch(app.profiles?.skills || [], app.projects?.requirements || []),
+        project_id: app.project_id 
+      })) || [];
 
-    setAllSeekers(seekersRes.data || []);
-    setMyJobs(jobsRes.data || []);
-    setActiveJobsCount(jobsRes.count || 0);
-    setApplicants(formatted); // Save the calculated matches to state
+      setAllSeekers(seekersRes.data || []);
+      setMyJobs(fetchedJobs);
+      setActiveJobsCount(jobsRes.count || 0);
+      setApplicants(formatted);
 
-    if (jobsRes.data && jobsRes.data.length > 0 && !scoutingForJobId) {
-      setScoutingForJobId(jobsRes.data[0].id);
-    }
-  } catch (err: any) {
-    toast.error("Sync failed");
-  } finally {
-    setLoading(false);
-  }
-}, [fetchInvitations, scoutingForJobId]);
-
-  // 4. EFFECTS
-  useEffect(() => {
-    if (initialView) setViewMode(initialView);
-  }, [initialView]);
-
-  useEffect(() => { 
-    fetchData(); 
-  }, [fetchData]);
-
-  // 5. HELPER FUNCTIONS
-const updateAppStatus = async (appId: string, newStatus: string) => {
-  try {
-    const { error: appError } = await supabase
-      .from('applications')
-      .update({ status: newStatus })
-      .eq('id', appId);
-
-    if (appError) throw appError;
-
-    if (newStatus === 'interviewing') {
-      const app = applicants.find(a => a.id === appId);
-      if (!app || !user) return;
-
-      // Senior fix: Check if invitation exists before upserting
-      const invitationExists = sentInvitations.some(
-        i => i.project_id === app.project_id && i.seeker_id === app.profiles.id
-      );
-
-      if (!invitationExists) {
-        const { error: handshakeError } = await supabase
-          .from('invitations')
-          .insert({
-            project_id: app.project_id,
-            seeker_id: app.profiles.id,
-            manager_id: user.id, 
-            status: 'accepted' 
-          });
-        if (handshakeError) throw handshakeError;
-        toast.success('Channel Opened!');
+      if (fetchedJobs.length > 0 && !scoutingForJobId) {
+        setScoutingForJobId(fetchedJobs[0].id);
       }
+    } catch (err) {
+      toast.error("Sync failed");
+    } finally {
+      setLoading(false);
     }
-    setApplicants(prev => prev.map(a => a.id === appId ? { ...a, status: newStatus } : a));
-  } catch (err) {
-    toast.error("Status sync failed");
-  }
-};
+  }, [fetchInvitations, scoutingForJobId]);
+
+  useEffect(() => { if (initialView) setViewMode(initialView); }, [initialView]);
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleHireCandidate = async (app: any) => {
+    if (!window.confirm(`Finalize hiring for ${app.name}?`)) return;
+    const loading = toast.loading("Finalizing hire...");
+    try {
+      const { error: appErr } = await supabase.from('applications').update({ status: 'hired' }).eq('id', app.id);
+      const { error: projErr } = await supabase.from('projects').update({ status: 'closed' }).eq('id', app.project_id);
+      if (appErr || projErr) throw new Error("Update failed");
+      toast.success("Hired successfully!", { id: loading });
+      setSelectedApplicant(null);
+      fetchData(); 
+      if (onActionComplete) onActionComplete();
+    } catch (err) {
+      toast.error("Sync failed", { id: loading });
+    }
+  };
+
+  const updateAppStatus = async (appId: string, newStatus: string) => {
+    setApplicants(prev => prev.map(a => String(a.id) === String(appId) ? { ...a, status: newStatus } : a));
+  };
 
   const handlePostJob = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     const loadingToast = toast.loading('Publishing...');
     try {
-      if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from('projects').insert([{
         manager_id: user.id,
         title: newJob.title,
@@ -186,6 +163,7 @@ const updateAppStatus = async (appId: string, newStatus: string) => {
       setIsModalOpen(false);
       setNewJob({ title: '', description: '', requirements: '', budget: '', location_type: 'remote', category: 'Engineering', deadline: '', is_priority: false });
       fetchData(); 
+      if (onActionComplete) onActionComplete();
     } catch (err: any) {
       toast.error(err.message, { id: loadingToast });
     } finally {
@@ -194,13 +172,12 @@ const updateAppStatus = async (appId: string, newStatus: string) => {
   };
 
   const filteredSeekers = useMemo(() => {
-  return allSeekers.filter(s => 
-    s.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.skills?.some((sk: string) => sk.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-}, [allSeekers, searchQuery]);
+    return allSeekers.filter(s => 
+      s.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.skills?.some((sk: string) => sk.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+  }, [allSeekers, searchQuery]);
 
-  // Early Return for Detail View
   if (selectedJob) {
     return (
       <JobDetailView 
@@ -214,31 +191,29 @@ const updateAppStatus = async (appId: string, newStatus: string) => {
     );
   }
 
-  useEffect(() => {
-  if (viewMode === 'discovery' && myJobs.length > 0 && !scoutingForJobId) {
-    setScoutingForJobId(myJobs[0].id);
-  }
-}, [viewMode, myJobs, scoutingForJobId]);
-
   return (
-    <div className="space-y-8 max-w-7xl mx-auto px-4 pb-20">
-      {/* HEADER SECTION */}
-      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6">
-        <div className="space-y-1 text-center md:text-left">
-          <h2 className="text-3xl font-black text-gray-900 tracking-tight">Intelligence Dashboard</h2>
-          <div className="flex gap-6 pt-4 justify-center md:justify-start">
+    <div className="space-y-6 md:space-y-8 max-w-7xl mx-auto px-4 pb-24">
+      {/* HEADER SECTION - Responsive Padding/Flex */}
+      <div className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-xl border border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="w-full space-y-4 md:space-y-1 text-center md:text-left">
+          <h2 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">Intelligence Dashboard</h2>
+          {/* SCROLLABLE TABS ON MOBILE */}
+          <div className="flex gap-4 md:gap-6 pt-2 overflow-x-auto no-scrollbar justify-start md:justify-start -mx-4 px-4 md:mx-0 md:px-0">
             {['pipeline', 'management', 'discovery', 'invites'].map((tab) => (
-              <button key={tab} onClick={() => setViewMode(tab)}
-                className={`text-xs font-black uppercase tracking-widest pb-2 transition-all border-b-4 ${viewMode === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-300 hover:text-gray-500'}`}>
-                {tab === 'pipeline' ? 'Overview' : tab === 'management' ? 'Job Inventory' : tab === 'discovery' ? 'Talent Pool' : 'Outreach'}
+              <button 
+                key={tab} 
+                onClick={() => handleInternalTabChange(tab)}
+                className={`text-[10px] md:text-xs font-black uppercase tracking-widest pb-2 transition-all border-b-4 whitespace-nowrap ${viewMode === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-300 hover:text-gray-500'}`}
+              >
+                {tab === 'pipeline' ? 'Overview' : tab === 'management' ? 'Inventory' : tab === 'discovery' ? 'Talent' : 'Outreach'}
               </button>
-
-              
             ))}
           </div>
-          
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-2xl hover:bg-indigo-600 transition-all font-bold shadow-2xl">
+        <button 
+          onClick={() => setIsModalOpen(true)} 
+          className="w-full md:w-auto flex items-center justify-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-2xl hover:bg-indigo-600 transition-all font-bold shadow-lg"
+        >
           <FaPlus /> <span>Post Opportunity</span>
         </button>
       </div>
@@ -246,48 +221,57 @@ const updateAppStatus = async (appId: string, newStatus: string) => {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-4">
            <FaSpinner className="animate-spin text-4xl text-indigo-600" />
-           <p className="font-black uppercase tracking-widest text-xs">Syncing Pipeline Data...</p>
+           <p className="font-black uppercase tracking-widest text-[10px]">Syncing Pipeline...</p>
         </div>
       ) : (
         <>
-          {/* PIPELINE VIEW */}
           {viewMode === 'pipeline' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-  {/* Card 1: Active Openings */}
-  <StatCard 
-    label="Active Openings" 
-    value={activeJobsCount} 
-    icon={<FaBriefcase />} 
-    color="bg-indigo-600" 
-  />
-
-  {/* Card 2: Pipeline Depth */}
-  <StatCard 
-    label="Pipeline Depth" 
-    value={applicants.length} 
-    icon={<FaUsers />} 
-    color="bg-rose-500" 
-  />
-
-  {/* Card 3: Avg. Match Quality */}
-  <StatCard 
-    label="Avg. Match Quality" 
-    value={
-      applicants.length > 0 
-        ? `${Math.round(applicants.reduce((sum, app) => sum + (app.match || 0), 0) / applicants.length)}%`
-        : "0%"
-    } 
-    icon={<FaChartLine />} 
-    color="bg-amber-500" 
-  />
-</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8">
+                <StatCard label="Active Openings" value={activeJobsCount} icon={<FaBriefcase />} color="bg-indigo-600" />
+                <StatCard label="Pipeline Depth" value={applicants.length} icon={<FaUsers />} color="bg-rose-500" />
+                <StatCard 
+                  label="Match Quality" 
+                  value={applicants.length > 0 ? `${Math.round(applicants.reduce((sum, app) => sum + (app.match || 0), 0) / applicants.length)}%` : "0%"} 
+                  icon={<FaChartLine />} 
+                  color="bg-amber-500" 
+                />
+              </div>
 
               <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-8 py-6 bg-gray-50/50 border-b border-gray-100">
-                  <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><FaFilter /> Evaluation</h3>
+                <div className="px-6 py-5 bg-gray-50/50 border-b border-gray-100">
+                  <h3 className="text-md font-bold text-gray-800 flex items-center gap-2"><FaFilter /> Evaluation</h3>
                 </div>
-                <div className="overflow-x-auto">
+                
+                {/* MOBILE VIEW FOR APPLICANTS (CARDS) */}
+                <div className="block md:hidden divide-y divide-gray-50">
+                  {applicants.map(app => (
+                    <div key={app.id} className="p-5 space-y-4">
+                      <div className="flex justify-between items-start" onClick={() => setSelectedApplicant(app)}>
+                        <div>
+                          <div className="font-bold text-gray-900">{app.name}</div>
+                          <div className="text-[10px] text-gray-400 uppercase tracking-tight">{app.role}</div>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${app.match > 80 ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                          {app.match}% Match
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        {(canChat(app.project_id, app.profiles.id) || app.status === 'interviewing') && (
+                          <button onClick={() => onNavigateToMessages(app.project_id, app.profiles.id)} className="flex-1 py-3 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-[10px] uppercase flex items-center justify-center gap-2">
+                            <FaPaperPlane /> Chat
+                          </button>
+                        )}
+                        <button onClick={() => setSelectedApplicant(app)} className="flex-1 py-3 bg-gray-50 text-gray-500 rounded-xl font-bold text-[10px] uppercase flex items-center justify-center gap-2">
+                          <FaExternalLinkAlt /> View
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* DESKTOP VIEW FOR APPLICANTS (TABLE) */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50/30">
                       <tr className="text-[10px] uppercase font-black text-gray-400 tracking-widest">
@@ -296,262 +280,162 @@ const updateAppStatus = async (appId: string, newStatus: string) => {
                         <th className="px-8 py-5 text-right">Action</th>
                       </tr>
                     </thead>
-<tbody className="divide-y divide-gray-50">
-  {applicants.map(app => (
-    <tr key={app.id} className="hover:bg-indigo-50/30 transition-all group">
-      <td className="px-8 py-5 cursor-pointer" onClick={() => setSelectedApplicant(app)}>
-        <div className="font-bold text-gray-800">{app.name}</div>
-        <div className="text-[10px] text-gray-400 uppercase">{app.role}</div>
-      </td>
-      
-      <td className="px-8 py-5 text-center">
-        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase ${app.match > 80 ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
-          {app.match}% Match
-        </span>
-      </td>
-
-      {/* CORRECTED ACTION CELL */}
-      <td className="px-8 py-5 text-right flex gap-2 justify-end">
-        {canChat(app.project_id, app.profiles.id) && (
-    <button 
-      onClick={() => onNavigateToMessages(app.project_id, app.profiles.id)} 
-      className="p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
-    >
-      <FaPaperPlane size={14} />
-      <span className="text-[10px] font-bold uppercase">Chat</span>
-    </button>)}
-  {app.status === 'interviewing' && (
-    <button 
-      onClick={() => onNavigateToMessages(app.project_id, app.profiles.id)} 
-      className="p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
-      title="Open Chat"
-    >
-      <FaPaperPlane size={14} />
-      <span className="text-[10px] font-bold uppercase">Chat</span>
-    </button>
-  )}
-        
-        <button 
-          onClick={() => setSelectedApplicant(app)} 
-          className="p-3 bg-gray-50 text-gray-400 rounded-xl hover:bg-indigo-600 hover:text-white transition-all"
-        >
-          <FaExternalLinkAlt size={14} />
-        </button>
-      </td>
-    </tr>
-  ))}
-</tbody>
+                    <tbody className="divide-y divide-gray-50">
+                      {applicants.map(app => (
+                        <tr key={app.id} className="hover:bg-indigo-50/30 transition-all group">
+                          <td className="px-8 py-5 cursor-pointer" onClick={() => setSelectedApplicant(app)}>
+                            <div className="font-bold text-gray-800">{app.name}</div>
+                            <div className="text-[10px] text-gray-400 uppercase">{app.role}</div>
+                          </td>
+                          <td className="px-8 py-5 text-center">
+                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase ${app.match > 80 ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                              {app.match}% Match
+                            </span>
+                          </td>
+                          <td className="px-8 py-5 text-right flex gap-2 justify-end">
+                            {(canChat(app.project_id, app.profiles.id) || app.status === 'interviewing') && (
+                              <button title='Chat with Applicant' onClick={() => onNavigateToMessages(app.project_id, app.profiles.id)} className="p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all">
+                                <FaPaperPlane size={14} />
+                              </button>
+                            )}
+                            <button title='View Applicant Details' onClick={() => setSelectedApplicant(app)} className="p-3 bg-gray-50 text-gray-400 rounded-xl hover:bg-indigo-600 hover:text-white transition-all">
+                              <FaExternalLinkAlt size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
                   </table>
                 </div>
               </div>
             </div>
           )}
 
-          {viewMode === 'management' && <JobManagement onSelectJob={setSelectedJob} />}
+          {viewMode === 'management' && <JobManagement onSelectJob={setSelectedJob} onDataChange={fetchData} />}
 
-        {viewMode === 'discovery' && (
-  <div className="space-y-6">
-    <div className="flex flex-col md:flex-row gap-4 items-end">
-      <div className="flex-1 space-y-2">
-        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Scouting For:</label>
-        <select 
-          value={scoutingForJobId} 
-          onChange={(e) => setScoutingForJobId(e.target.value)}
-          className="w-full p-4 bg-white border border-gray-100 rounded-2xl font-bold text-gray-900 focus:ring-2 focus:ring-indigo-600 outline-none shadow-sm"
-        >
-          {myJobs.map(job => (
-            <option key={job.id} value={job.id}>{job.title}</option>
-          ))}
-        </select>
-      </div>
-      
-      <div className="relative flex-[2]">
-        <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input 
-          type="text" 
-          placeholder="Search skills..." 
-          className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-2xl font-bold shadow-sm" 
-          value={searchQuery} 
-          onChange={(e) => setSearchQuery(e.target.value)} 
-        />
-      </div>
-    </div>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-      {filteredSeekers.map(s => {
-        // FIX: Now we check if invited specifically to the selected job
-        const isInvitedToThisJob = sentInvitations.some(
-          inv => inv.seeker_id === s.id && inv.project_id === scoutingForJobId
-        );
-
-        return (
-          <ProfileCard 
-            key={s.id} 
-            profile={s} 
-            isInvited={isInvitedToThisJob}
-            onInvite={(profile) => {
-              setTargetSeeker(profile);
-              setIsInviteModalOpen(true);
-            }} 
-          />
-        );
-      })}
-    </div>
-  </div>
-)}
-          {/* OUTREACH/INVITES VIEW */}
-         {/* OUTREACH/INVITES VIEW */}
-{viewMode === 'invites' && (
-  <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
-    <div className="px-8 py-6 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
-      <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-        <FaPaperPlane className="text-indigo-600" /> My Sent Invitations
-      </h3>
-      <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full tracking-widest uppercase">
-        {sentInvitations.length} Active Pitches
-      </span>
-    </div>
-    
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="text-[10px] uppercase font-black text-gray-400 tracking-widest bg-gray-50/30">
-            <th className="px-8 py-4 text-left">Candidate</th>
-            <th className="px-8 py-4 text-left">Project</th>
-            <th className="px-8 py-4 text-center">Status</th>
-            <th className="px-8 py-4 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-50">
-          {sentInvitations.length === 0 ? (
-            <tr><td colSpan={4} className="px-8 py-20 text-center text-gray-400 italic">No outreach active. Use the Talent Pool to find seekers.</td></tr>
-          ) : (
-            sentInvitations.map((inv) => (
-              <tr key={inv.id} className="group hover:bg-gray-50/50 transition-all">
-                <td className="px-8 py-5">
-                  <div className="font-bold text-gray-900">{inv.profiles?.full_name}</div>
-                  <div className="text-[10px] text-gray-400 font-medium">{inv.profiles?.email}</div>
-                </td>
-                <td className="px-8 py-5">
-                  <div className="text-sm font-bold text-gray-700">{inv.projects?.title}</div>
-                </td>
-                <td className="px-8 py-5 text-center">
-                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-                    inv.status === 'accepted' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                    inv.status === 'declined' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                    'bg-amber-50 text-amber-600 border-amber-100'
-                  }`}>
-                    {inv.status}
-                  </span>
-                </td>
-              <td className="px-8 py-5 text-right flex gap-3 justify-end">
-  {inv.status !== 'declined' && (
-    <button 
-      onClick={() => onNavigateToMessages(inv.project_id, inv.seeker_id)} 
-      className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
-    >
-      <FaPaperPlane size={12} />
-      <span className="text-[10px] font-bold uppercase">Chat</span>
-    </button>
-  )}
-
-  <button 
-    onClick={() => withdrawInvitation(inv.id)} 
-    className="p-3 bg-white text-gray-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm border border-transparent hover:border-rose-100"
-    title="Withdraw"
-  >
-    <FaTimes size={14} />
-  </button>
-</td>
-              </tr>
-            ))
+          {viewMode === 'discovery' && (
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="w-full md:w-1/3">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Scouting For:</label>
+                  <select title='Select Job to Scout For'
+                    value={scoutingForJobId} 
+                    onChange={(e) => setScoutingForJobId(e.target.value)}
+                    className="w-full p-4 bg-white border border-gray-100 rounded-2xl font-bold shadow-sm focus:ring-2 focus:ring-indigo-600"
+                  >
+                    {myJobs.map(job => <option key={job.id} value={job.id}>{job.title}</option>)}
+                  </select>
+                </div>
+                <div className="w-full md:w-2/3 flex flex-col">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Search Talent:</label>
+                  <div className="relative">
+                    <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Skills or name..." 
+                      className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-2xl font-bold shadow-sm focus:ring-2 focus:ring-indigo-600" 
+                      value={searchQuery} 
+                      onChange={(e) => setSearchQuery(e.target.value)} 
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredSeekers.map(s => (
+                  <ProfileCard 
+                    key={s.id} 
+                    profile={s} 
+                    isInvited={sentInvitations.some(inv => inv.seeker_id === s.id && inv.project_id === scoutingForJobId)}
+                    onInvite={(profile) => {
+                      setTargetSeeker(profile);
+                      setIsInviteModalOpen(true);
+                    }} 
+                  />
+                ))}
+              </div>
+            </div>
           )}
-        </tbody>
-      </table>
-    </div>
-  </div>
-)}
+
+          {viewMode === 'invites' && (
+            <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+               {/* Mobile View Invitations */}
+               <div className="md:hidden divide-y divide-gray-50">
+                 {sentInvitations.map(inv => (
+                   <div key={inv.id} className="p-5 space-y-3">
+                     <div className="flex justify-between">
+                       <div>
+                         <div className="font-bold">{inv.profiles?.full_name}</div>
+                         <div className="text-[10px] text-gray-400 font-bold">{inv.projects?.title}</div>
+                       </div>
+                       <span className="text-[9px] font-black uppercase text-indigo-600">{inv.status}</span>
+                     </div>
+                     <div className="flex gap-2">
+                        <button onClick={() => onNavigateToMessages(inv.project_id, inv.seeker_id)} className="flex-1 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase">Chat</button>
+                        <button title='Withdraw Invitation' onClick={() => withdrawInvitation(inv.id)} className="p-2 bg-gray-50 text-rose-500 rounded-lg"><FaTimes /></button>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+        
+               <div className="hidden md:block">
+                  <table className="w-full">
+                   
+                  </table>
+               </div>
+            </div>
+          )}
         </>
       )}
 
-      {/* MODALS */}
+      {/* MODALS remain mostly same but ensured they use w-full max-w-md for mobile */}
       <PostJobModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handlePostJob} newJob={newJob} setNewJob={setNewJob} isSubmitting={isSubmitting} />
-      <ApplicantSlideOver applicant={selectedApplicant} onClose={() => setSelectedApplicant(null)} onUpdateStatus={updateAppStatus} />
+      <ApplicantSlideOver applicant={selectedApplicant} onClose={() => setSelectedApplicant(null)} onUpdateStatus={updateAppStatus} onHire={handleHireCandidate} />
 
-      {/* INVITATION MODAL */}
-      {/* INVITATION MODAL */}
-{isInviteModalOpen && (
-  <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 animate-in fade-in duration-300">
-    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md" onClick={() => setIsInviteModalOpen(false)} />
-    <div className="relative bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col">
-      <div className="p-8 bg-indigo-600 text-white flex justify-between items-center">
-        <div>
-          <h3 className="text-xl font-black">Invite {targetSeeker?.full_name}</h3>
-          <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-widest mt-1">Select a project to pitch</p>
-        </div>
-        <button onClick={() => setIsInviteModalOpen(false)} className="hover:rotate-90 transition-transform">
-          <FaTimes size={20} />
-        </button>
-      </div>
-      
-      <div className="p-8 space-y-3 max-h-[400px] overflow-y-auto">
-        {myJobs.length === 0 ? (
-          <p className="text-center text-gray-400 py-10 italic">No active jobs found. Post a job first!</p>
-        ) : (
-          myJobs.map(job => {
-            const isAlreadyInvited = sentInvitations.some(
-              inv => inv.project_id === job.id && inv.seeker_id === targetSeeker?.id
-            );
-            
-            return (
-              <button 
-                key={job.id} 
-                disabled={isInviting || isAlreadyInvited}
-                onClick={async () => {
-                  const success = await sendInvitation(job.id, targetSeeker);
-                  if (success) setIsInviteModalOpen(false);
-                }}
-                className={`w-full text-left p-5 rounded-2xl border-2 flex items-center justify-between transition-all group ${
-                  isAlreadyInvited 
-                    ? 'bg-emerald-50 border-emerald-100 cursor-not-allowed opacity-80' 
-                    : 'border-gray-50 hover:border-indigo-600 hover:bg-indigo-50 active:scale-[0.98]'
-                }`}
-              >
-                <div>
-                  <div className={`font-bold ${isAlreadyInvited ? 'text-emerald-700' : 'text-gray-900'}`}>
-                    {job.title}
-                  </div>
-                  <div className="text-[10px] text-gray-400 uppercase font-black tracking-widest">
-                    {isAlreadyInvited ? 'Invitation Pending' : job.category}
-                  </div>
-                </div>
-                {isInviting ? (
-                  <FaSpinner className="animate-spin text-indigo-600" />
-                ) : isAlreadyInvited ? (
-                  <div className="bg-emerald-500 text-white p-1 rounded-full"><FaPlus className="rotate-45" size={10} /></div>
-                ) : (
-                  <FaPlus className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
-                )}
+      {isInviteModalOpen && (
+        <div className="fixed inset-0 z-[300] flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md" onClick={() => setIsInviteModalOpen(false)} />
+          <div className="relative bg-white w-full max-w-md rounded-t-[2.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300">
+            <div className="p-8 bg-indigo-600 text-white flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-black">Invite Seeker</h3>
+                <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-widest mt-1">Select a project</p>
+              </div>
+              <button title='zx' onClick={() => setIsInviteModalOpen(false)} className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full">
+                <FaTimes size={18} />
               </button>
-            );
-          })
-        )}
-      </div>
-    </div>
-  </div>
-)}
+            </div>
+            <div className="p-6 space-y-3 max-h-[60vh] overflow-y-auto">
+              {myJobs.map(job => (
+                <button 
+                  key={job.id} 
+                  className="w-full text-left p-4 rounded-2xl border-2 border-gray-50 hover:border-indigo-600 transition-all flex justify-between items-center"
+                  onClick={async () => {
+                    const success = await sendInvitation(job.id, targetSeeker);
+                    if (success) setIsInviteModalOpen(false);
+                  }}
+                >
+                  <span className="font-bold text-gray-900">{job.title}</span>
+                  <FaPlus className="text-gray-300" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-
-function StatCard({ label, value, icon, color }: any) {
+// Updated StatCard for Mobile/Tablet
+function StatCard({ label, value, icon, color }: { label: string, value: string | number, icon: any, color: string }) {
   return (
-    <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-6 group">
-      <div className={`${color} w-16 h-16 rounded-[1.25rem] text-white flex items-center justify-center text-2xl group-hover:scale-110 transition-transform`}>{icon}</div>
+    <div className="bg-white p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4 md:gap-6 group">
+      <div className={`${color} w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-[1.25rem] text-white flex items-center justify-center text-xl md:text-2xl shrink-0`}>
+        {icon}
+      </div>
       <div>
-        <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">{label}</p>
-        <p className="text-3xl font-black text-gray-900">{value}</p>
+        <p className="text-[9px] md:text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">{label}</p>
+        <p className="text-xl md:text-3xl font-black text-gray-900">{value}</p>
       </div>
     </div>
   );

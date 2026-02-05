@@ -1,107 +1,69 @@
-import type { User, Session } from '@supabase/supabase-js';
+import type {  Tables } from './supabase';
 
-export type UserRole = 'MANAGER' | 'SEEKER';
+/* ================= DATABASE ENTITY TYPES ================= */
+// We use the 'Tables' helper to extract the exact shape from your Supabase schema
 
-export interface Profile {
-  id: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  role: UserRole;
-  bio: string | null;
-  settings?: any;
-  
-  // Seeker Specifics
-  skills: string[] | null;
-  experience_level: 'Junior' | 'Intermediate' | 'Senior' | null;
-  resume_url: string | null;
-  website_url: string | null;
-  
-  updated_at: string | null;
-  created_at: string;
-}
-
-export interface AuthContextType {
-  user: User | null;
-  profile: Profile | null;
-  session: Session | null;
-  isLoading: boolean;
-  logout: () => Promise<void>;
-  refreshProfile: () => Promise<void>; 
-}
-
-export interface JobProject {
-  id: string;
-  title: string;
-  description: string;
-  manager_id: string;
-  status: 'open' | 'closed';
-  requirements?: string[];
-  created_at: string;
-}
-
-export interface Application {
-  id: string;
-  project_id: string;
-  user_id: string;
-  status: 'Applied' | 'Viewed' | 'Shortlisted' | 'Rejected';
-  match_score: number;
-  created_at: string;
-  projects?: JobProject; 
-  description: string;
-  requirements: string[]; 
-   location_type: string;
-  budget?: string;
-  title: string;
-}
-
-interface HandshakeInfo {
-  name: string;
-  email: string;
-}
-
-interface JobDetailProps {
-  job: any;
-  userRole: 'MANAGER' | 'SEEKER';
-  onBack: () => void;
-  onApply?: (pitch: string) => Promise<void> | void; 
-  onEdit?: (job: any) => void;
-  onUpdateApplicantStatus?: (appId: string, newStatus: string) => Promise<void>;
-  isApplied: boolean; 
-  isConnected?: boolean; // NEW PROP
-  applicants?: any[]; 
-}
-
+export type Profile = Tables<'profiles'>;
+export type JobProject = Tables<'projects'>;
+export type Message = Tables<'messages'>;
+export type Application = Tables<'applications'>;
+export type Invitation = Tables<'invitations'>;
 // src/types/index.ts
+export type UserRole = 'manager' | 'seeker'; 
 
-export interface MessageReaction {
+/* ================= EXTENDED / UI TYPES ================= */
+
+// We can extend the base types for specific UI needs (like Chat)
+export interface ChatRoom extends Omit<Invitation, 'status'> {
+  // Use string literal unions for stricter status control
+  status: 'pending' | 'accepted' | 'declined';
+  unread_count?: number;
+  
+  // Relational data from joins (matches your Supabase query structure)
+  seeker_profiles?: Pick<Profile, 'full_name' | 'avatar_url'>;
+  projects?: Pick<JobProject, 'id' | 'title' | 'manager_id'> & {
+    profiles: Pick<Profile, 'full_name' | 'avatar_url'>;
+  };
+}
+
+export interface Reaction {
   user_id: string;
   emoji: string;
+  full_name: string | null;
 }
 
-export interface Message {
-  id: string;
-  project_id: string;
-  sender_id: string;
-  content: string;
-  created_at: string;
-  file_url: string | null;
-  file_type: string | null;
-  is_read: boolean;
-  message_reactions: any[]; // Ensure this matches your DB column name
+// We wrap the DB Message to add UI-only flags like 'isOptimistic'
+export interface AppMessage extends Message {
   isOptimistic?: boolean;
+  // Parse the JSON reactions column from the DB into our Reaction interface
+  parsedReactions?: Reaction[];
 }
 
-export interface ChatRoom {
-  project_id: string;
-  status: 'pending' | 'accepted' | 'declined';
-  last_read_at: string;
-  projects: {
-    id: string;
-    title: string;
-    manager_id: string;
-    profiles: {
-      full_name: string;
-      avatar_url: string | null;
-    };
-  };
+/* ================= COMPONENT PROPS ================= */
+
+export interface MessageContainerProps {
+  groupedMessages: Record<string, AppMessage[]>;
+  currentUserId?: string;
+  partnerTyping: boolean;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+  onScroll: () => void;
+}
+
+export interface MessageInputProps {
+  text: string;
+  setText: (val: string) => void;
+  onSend: (file?: File | null) => void;
+  onTyping: (val: string) => void;
+  isSending: boolean;
+}
+
+export interface ChatSidebarProps {
+  chats: ChatRoom[];
+  activeChatId?: string; 
+  onSelect: (chat: ChatRoom) => void;
+  profile?: Pick<Profile, 'full_name' | 'role' | 'avatar_url'>;
+  onMarkAllRead: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }

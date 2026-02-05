@@ -1,14 +1,6 @@
-import { Message } from '../../types'; // Adjust based on your types path
+import type { MessageContainerProps} from '../../types'; 
 import DateSeparator from './DateSeparator';
 
-interface MessageContainerProps {
-  groupedMessages: Record<string, any[]>;
-  currentUserId?: string;
-  partnerTyping: boolean;
-  containerRef: React.RefObject<HTMLDivElement>;
-  scrollRef: React.RefObject<HTMLDivElement>;
-  onScroll: () => void;
-}
 
 export default function MessageContainer({
   groupedMessages,
@@ -26,7 +18,7 @@ export default function MessageContainer({
     >
       {Object.entries(groupedMessages).map(([dateLabel, msgs]) => (
         <div key={dateLabel}>
-          {/* Your Date Separator Component */}
+          {/*  Date Separator Component */}
           <DateSeparator date={msgs[0].created_at} />
 
           <div className="space-y-6">
@@ -65,8 +57,6 @@ export default function MessageContainer({
           <span className="text-[9px] font-black uppercase tracking-widest">Partner is typing</span>
         </div>
       )}
-
-      {/* Invisible anchor for scroll-to-bottom */}
       <div ref={scrollRef} className="h-2" />
     </div>
   );

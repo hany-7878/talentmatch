@@ -2,20 +2,63 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    @apply overscroll-none overflow-hidden h-full;
+    height: 100dvh; 
+  }
+}
+
 @layer utilities {
-  /* This hides the scrollbar but keeps functionality */
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
+
+  .safe-h-screen {
+    height: 100vh;
+    height: 100dvh; 
+  }
+
+  .p-safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  
+  .p-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .m-safe-bottom {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;  
+    scrollbar-width: none;  
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .scrolling-touch {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    @apply overflow-y-auto;
   }
 
-  /* Smoothly fades the edges of your carousel so it doesn't look cut off */
+  
+  .overscroll-contain {
+    overscroll-behavior: contain;
+  }
+
   .carousel-mask {
     mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
     -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+  }
+
+  
+  @media (display-mode: standalone) {
+    .pwa-only-pt {
+      padding-top: env(safe-area-inset-top, 20px);
+    }
   }
 }

@@ -1,6 +1,6 @@
 import { 
   FaGlobe, FaFilePdf, FaPaperPlane, FaCheckCircle, 
-  FaEnvelope, FaPhone, FaLanguage 
+  FaEnvelope, FaPhone, FaLanguage, FaTimesCircle, FaHourglassHalf, FaBuilding
 } from 'react-icons/fa';
 import { supabase } from '../../../lib/supabaseClient';
 import type { Profile } from '../../../types';
@@ -16,48 +16,76 @@ interface ProfileCardProps {
 export default function ProfileCard({ profile, onInvite, isInvited, handshakeStatus }: ProfileCardProps) {
   if (!profile) return null;
 
-  const isManager = profile.role === 'MANAGER';
+  const isManager = profile.role === 'MANAGER' || (profile as any).role === 'manager';
   const firstLetter = profile.full_name?.trim().charAt(0).toUpperCase() || 'U';
 
+  // Robust parsing for skills and languages
   const skills = Array.isArray(profile.skills) ? profile.skills : [];
-  const languages = Array.isArray((profile as any).languages) ? (profile as any).languages : [];
+  
+  // Handles DB returning string (e.g., "English, French") or array (["English", "French"])
+  const languages = Array.isArray(profile.languages) 
+    ? profile.languages 
+    : typeof profile.languages === 'string' 
+      ? profile.languages.split(',').map(l => l.trim()) 
+      : [];
 
   const handleViewResume = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!profile.resume_url) return;
+    
     try {
-      const path = profile.resume_url.split('/resumes/').pop();
-      if (!path) throw new Error("Invalid path");
-      const { data, error } = await supabase.storage.from('resumes').createSignedUrl(path, 3600);
+      const urlParts = profile.resume_url.split('resumes/');
+      const path = urlParts[urlParts.length - 1]; 
+      
+      if (!path) throw new Error("Path extraction failed");
+      
+      const { data, error } = await supabase.storage
+        .from('resumes')
+        .createSignedUrl(path, 3600);
+
       if (error) throw error;
       window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
     } catch (err) {
-      toast.error("Resume unavailable.");
+      console.error("Storage Error:", err);
+      toast.error("Resume link expired or unavailable.");
     }
+  };
+
+  const getStatusStyles = () => {
+    if (handshakeStatus === 'accepted' || (isInvited && handshakeStatus === null)) return 'from-emerald-500 to-teal-600';
+    if (handshakeStatus === 'declined') return 'from-rose-500 to-red-600';
+    if (handshakeStatus === 'pending') return 'from-amber-400 to-orange-500';
+    
+    return isManager ? 'from-slate-700 to-slate-900' : 'from-indigo-600 to-blue-700';
   };
 
   return (
     <div className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden border border-gray-100 max-w-md mx-auto transition-all hover:shadow-2xl duration-300">
-      {/* Banner - Color coded by role */}
-      <div className={`h-28 bg-gradient-to-br ${
-        isInvited ? 'from-emerald-400 to-teal-500' : isManager ? 'from-gray-700 to-black' : 'from-indigo-600 to-blue-700'
-      }`} />
+      {/* Banner */}
+      <div className={`h-28 bg-gradient-to-br transition-colors duration-500 ${getStatusStyles()}`} />
       
       <div className="px-8 pb-8">
         {/* Avatar Section */}
         <div className="relative -mt-12 mb-6">
           <div className="w-24 h-24 rounded-3xl border-4 border-white bg-white shadow-2xl overflow-hidden flex items-center justify-center">
             {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+              <img src={profile.avatar_url} alt={`${profile.full_name}`} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-slate-50 flex items-center justify-center text-3xl font-black text-indigo-200">
                 {firstLetter}
               </div>
             )}
           </div>
-          {isInvited && (
-            <div className="absolute top-0 left-20 bg-emerald-500 text-white p-2 rounded-full border-4 border-white shadow-lg animate-bounce">
-              <FaCheckCircle size={14} />
+          
+          {/* Status Badge */}
+          {(isInvited || handshakeStatus) && (
+            <div className={`absolute top-0 left-20 text-white p-2 rounded-full border-4 border-white shadow-lg animate-bounce ${
+              (handshakeStatus === 'accepted' || (isInvited && !handshakeStatus)) ? 'bg-emerald-500' : 
+              handshakeStatus === 'declined' ? 'bg-rose-500' : 'bg-amber-500'
+            }`}>
+              {(handshakeStatus === 'accepted' || (isInvited && !handshakeStatus)) && <FaCheckCircle size={14} />}
+              {handshakeStatus === 'declined' && <FaTimesCircle size={14} />}
+              {handshakeStatus === 'pending' && <FaHourglassHalf size={14} />}
             </div>
           )}
         </div>
@@ -68,25 +96,31 @@ export default function ProfileCard({ profile, onInvite, isInvited, handshakeSta
             <h3 className="text-3xl font-black text-gray-900 tracking-tighter leading-none">
               {profile.full_name || 'Anonymous'}
             </h3>
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500 block mt-1">
-              {isManager ? 'Company Partner' : (profile.experience_level || 'Professional')}
-            </span>
+            
+            {/* Display Role Details */}
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">
+                {isManager ? 'Company Partner' : (profile.experience_level || 'Professional')}
+              </span>
+              {isManager && profile.company_name && (
+                <span className="flex items-center gap-1 text-[10px] font-bold text-gray-400 uppercase">
+                  <FaBuilding size={10} /> {profile.company_name}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1 border-y border-gray-50 py-3">
-            {(profile as any).email && (
+            {profile.email && (
               <div className="flex items-center gap-1.5 text-gray-500 text-[11px] font-bold">
-                <FaEnvelope className="text-indigo-400" /> {(profile as any).email}
+                <FaEnvelope className="text-indigo-400" /> {profile.email}
               </div>
             )}
-            {(profile as any).phone && (
+            {profile.phone && (
               <div className="flex items-center gap-1.5 text-gray-500 text-[11px] font-bold">
-                <FaPhone className="text-emerald-400" /> {(profile as any).phone}
+                <FaPhone className="text-emerald-400" /> {profile.phone}
               </div>
             )}
-        
-
-
             {languages.length > 0 && (
               <div className="flex items-center gap-1.5 text-gray-500 text-[11px] font-bold">
                 <FaLanguage className="text-amber-400 text-sm" /> 
@@ -96,17 +130,17 @@ export default function ProfileCard({ profile, onInvite, isInvited, handshakeSta
           </div>
           
           <p className="text-gray-600 text-sm leading-relaxed italic line-clamp-3">
-            "{profile.bio || 'Professional Seeker ready for new opportunities.'}"
+            "{profile.bio || 'Ready for new professional opportunities.'}"
           </p>
         </div>
 
-        {/* Tech Stack - Only for Seekers */}
+        {/* Tech Stack */}
         {!isManager && skills.length > 0 && (
           <div className="mt-6">
             <p className="text-gray-400 text-[9px] font-black uppercase tracking-widest mb-3">Core Expertise</p>
             <div className="flex flex-wrap gap-2">
-              {skills.map((skill) => (
-                <span key={skill} className="px-3 py-1.5 bg-slate-50 text-slate-700 text-[10px] font-black rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-white transition-all">
+              {skills.slice(0, 8).map((skill) => (
+                <span key={skill} className="px-3 py-1.5 bg-slate-50 text-slate-700 text-[10px] font-black rounded-xl border border-slate-100 hover:border-indigo-200 transition-all">
                   {skill}
                 </span>
               ))}
@@ -131,22 +165,29 @@ export default function ProfileCard({ profile, onInvite, isInvited, handshakeSta
             {!isManager && onInvite && (
               <button 
                 onClick={(e) => { e.stopPropagation(); onInvite(profile); }}
-                disabled={isInvited}
+                disabled={isInvited || !!handshakeStatus}
                 className={`flex items-center gap-2 px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 ${
-                  isInvited 
+                  (handshakeStatus === 'accepted' || (isInvited && !handshakeStatus))
                     ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
-                    : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100'
+                    : handshakeStatus === 'pending'
+                    ? 'bg-amber-50 text-amber-600 border border-amber-200 cursor-not-allowed' 
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
                 }`}
               >
-                {isInvited ? 'Sent' : <><FaPaperPlane /> Invite</>}
+                {(handshakeStatus === 'accepted' || (isInvited && !handshakeStatus)) ? (
+                  <><FaCheckCircle /> Accepted</>
+                ) : handshakeStatus === 'pending' ? (
+                  'Pending'
+                ) : (
+                  <><FaPaperPlane /> Invite</>
+                )}
               </button>
             )}
 
             {!isManager && profile.resume_url && (
-              <button 
+              <button aria-label="View Resume" title="View Resume"
                 onClick={handleViewResume} 
                 className="p-3 bg-slate-900 text-white rounded-2xl hover:bg-rose-600 transition-all shadow-lg active:scale-95"
-                title="View Resume"
               >
                 <FaFilePdf size={16} />
               </button>

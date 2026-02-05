@@ -2,10 +2,15 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import { FaHashtag, FaArrowDown } from 'react-icons/fa';
+import { FaHashtag, FaArrowDown, FaBars } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { format, isToday, isYesterday } from 'date-fns';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import type { Database } from '../../types/supabase';
+import type { 
+  ChatRoom, 
+  Message, 
+} from '../../types';
 
 // Modular components
 import ChatSidebar from './ChatSidebar';
@@ -13,59 +18,52 @@ import ChatHeader from './ChatHeader';
 import MessageContainer from './MessageContainer';
 import MessageInput from './MessageInput';
 
-/* ================= TYPES ================= */
+type DBMessage = Database['public']['Tables']['messages']['Row'];
 
-interface Reaction {
-  user_id: string;
-  emoji: string;
-  full_name: string;
-}
-
-interface Message {
-  id: string;
-  project_id: string;
-  sender_id: string;
-  content: string;
-  created_at: string;
-  file_url: string | null;
-  file_type: string | null;
-  is_read: boolean;
-  reactions: Reaction[];
-  isOptimistic?: boolean;
-}
-
-interface ChatRoom {
-  project_id: string;
-  seeker_id: string; // Added to interface for composite key tracking
-  status: 'pending' | 'accepted' | 'declined';
-  last_read_at: string;
-  unread_count?: number; 
-  seeker_profiles?: {
-    full_name: string;
-    avatar_url: string | null;
-  };
-  projects: {
-    id: string;
-    title: string;
-    manager_id: string;
-    profiles: {
-      full_name: string;
-      avatar_url: string | null;
-    };
-  };
+// interface UIMessage extends Omit<DBMessage, 'reactions'> {
+//   isOptimistic?: boolean;
+//   // Define reactions strictly instead of using 'Json'
+//   reactions: Array<{
+//     user_id: string;
+//     emoji: string;
+//     full_name: string;
+//   }> | null;
+// }
+interface MessagingViewProps {
+  onRefreshNotifs?: () => void; 
 }
 
 const NOTIFY_SOUND = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
 
-export default function MessagingView() {
+export default function MessagingView({ onRefreshNotifs }: MessagingViewProps) {
   const { profile } = useAuth();
   const [searchParams] = useSearchParams();
   const autoSelectedProjectId = searchParams.get('projectId');
   const recipientId = searchParams.get('recipientId');
+  interface UIMessage extends Omit<DBMessage, 'reactions'> {
+  isOptimistic?: boolean;
+  // Define reactions strictly instead of using 'Json'
+  reactions: Array<{
+    user_id: string;
+    emoji: string;
+    full_name: string;
+  }> | null;
+}
+  /* ================= 1. STABLE NOTIFICATION REF ================= */
+  // This prevents the "hook changed size" error by keeping the dependency array constant
+  const refreshRef = useRef(onRefreshNotifs);
+  useEffect(() => {
+    refreshRef.current = onRefreshNotifs;
+  }, [onRefreshNotifs]);
 
+  const triggerRefresh = useCallback(() => {
+    refreshRef.current?.();
+  }, []);
+
+  /* ================= 2. STATE & REFS ================= */
   const [chats, setChats] = useState<ChatRoom[]>([]);
   const [activeChat, setActiveChat] = useState<ChatRoom | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<UIMessage[]>([]);
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -73,15 +71,14 @@ export default function MessagingView() {
   
   const [showJumpButton, setShowJumpButton] = useState(false);
   const [hasNewUnseen, setHasNewUnseen] = useState(false);
-
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roomChannelRef = useRef<RealtimeChannel | null>(null);
   const isFloatingRef = useRef(false);
 
-  /* ================= 1. HELPERS ================= */
-
+  /* ================= 3. HELPERS ================= */
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     scrollRef.current?.scrollIntoView({ behavior });
     setShowJumpButton(false);
@@ -119,6 +116,8 @@ export default function MessagingView() {
       .eq('project_id', projectId)
       .neq('sender_id', profile.id)
       .eq('is_read', false);
+
+    triggerRefresh();
   };
 
   const markAllAsRead = async () => {
@@ -134,6 +133,7 @@ export default function MessagingView() {
         .eq(isManager ? 'manager_id' : 'seeker_id', profile.id);
 
       setChats(prev => prev.map(c => ({ ...c, unread_count: 0, last_read_at: now })));
+      triggerRefresh();
       toast.success("Inbox cleared");
     } catch (err) {
       toast.error("Failed to clear notifications");
@@ -149,8 +149,7 @@ export default function MessagingView() {
     }
   }, [profile?.id]);
 
-  /* ================= 2. DATA LOADING ================= */
-
+  /* ================= 4. DATA LOADING ================= */
   const loadChats = useCallback(async () => {
     if (!profile?.id) return;
     const isManager = profile.role?.toLowerCase() === 'manager';
@@ -163,27 +162,16 @@ export default function MessagingView() {
         last_read_at,
         seeker_id,
         manager_id,
-        seeker_profiles:seeker_id ( 
-          full_name, 
-          avatar_url 
-        ),
+        seeker_profiles:seeker_id ( full_name, avatar_url ),
         projects:project_id (
-          id, 
-          title, 
-          manager_id,
-          profiles:projects_manager_id_fkey ( 
-            full_name, 
-            avatar_url 
-          )
+          id, title, manager_id,
+          profiles:projects_manager_id_fkey ( full_name, avatar_url )
         )
       `)
       .in('status', ['accepted', 'pending'])
       .eq(isManager ? 'manager_id' : 'seeker_id', profile.id);
 
-    if (error) {
-      console.error("Fetch error:", error);
-      return;
-    }
+    if (error) return;
 
     if (invitations) {
       const chatsWithUnreads = await Promise.all(invitations.map(async (chat: any) => {
@@ -221,9 +209,7 @@ export default function MessagingView() {
     setLoading(false);
   }, [profile?.id, autoSelectedProjectId, activeChat, recipientId]);
 
-  /* ================= 3. EFFECTS ================= */
-
-  // Clear search params after a chat is successfully selected
+  /* ================= 5. EFFECTS ================= */
   useEffect(() => {
     if (activeChat && (searchParams.get('projectId') || searchParams.get('recipientId'))) {
       window.history.replaceState({}, '', window.location.pathname);
@@ -235,9 +221,11 @@ export default function MessagingView() {
     loadChats();
 
     const globalMsgChannel = supabase.channel('global-msg-sync')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, payload => {
         const newMessage = payload.new as Message;
-        if (newMessage.sender_id !== profile?.id) {
+        triggerRefresh();
+
+        if (payload.eventType === 'INSERT' && newMessage.sender_id !== profile?.id) {
           triggerNotification(newMessage);
           setChats(prev => prev.map(chat => {
             if (chat.project_id === newMessage.project_id && activeChat?.project_id !== chat.project_id) {
@@ -250,34 +238,41 @@ export default function MessagingView() {
       .subscribe();
 
     const inviteChannel = supabase.channel('invitation-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invitations' }, loadChats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invitations' }, () => {
+        loadChats();
+        triggerRefresh();
+      })
       .subscribe();
 
     return () => { 
       globalMsgChannel.unsubscribe();
       inviteChannel.unsubscribe(); 
     };
-  }, [loadChats, profile?.id, activeChat?.project_id, triggerNotification]);
+    // triggerRefresh is stable, so this dependency array will never change size/order
+  }, [loadChats, profile?.id, activeChat?.project_id, triggerNotification, triggerRefresh]);
 
   useEffect(() => {
     if (!activeChat) return;
 
     const fetchMessages = async () => {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('project_id', activeChat.project_id)
-        .order('created_at', { ascending: true })
-        .limit(100);
-      
-      if (!error && data) {
-        setMessages(data as Message[]);
-        setTimeout(() => scrollToBottom('auto'), 50);
-      }
-    };
+  // 1. Add this Guard Clause
+  if (!activeChat?.project_id) return; 
+
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('project_id', activeChat.project_id) // Now TS knows this is a string!
+    .order('created_at', { ascending: true })
+    .limit(100);
+  
+  if (!error && data) {
+    setMessages(data as unknown as UIMessage[]);
+    setTimeout(() => scrollToBottom('auto'), 50);
+  }
+};
 
     fetchMessages();
-    markAsRead(activeChat.project_id);
+    markAsRead(activeChat.project_id ?? '');
 
     const roomChannel = supabase.channel(`room:${activeChat.project_id}`)
       .on('postgres_changes', { 
@@ -286,24 +281,18 @@ export default function MessagingView() {
         table: 'messages', 
         filter: `project_id=eq.${activeChat.project_id}` 
       }, payload => {
-        if (payload.eventType === 'INSERT') {
-          const newMessage = payload.new as Message;
-          setMessages(prev => {
-            if (prev.some(m => m.id === newMessage.id)) return prev;
-            if (isFloatingRef.current) setHasNewUnseen(true);
-            return [...prev, newMessage];
-          });
-          
-          setPartnerTyping(false);
-          if (!isFloatingRef.current) {
-              markAsRead(activeChat.project_id);
-              setTimeout(scrollToBottom, 50);
-          }
-        }
-        if (payload.eventType === 'UPDATE') {
-          const updatedMsg = payload.new as Message;
-          setMessages(prev => prev.map(m => m.id === updatedMsg.id ? updatedMsg : m));
-        }
+       if (payload.eventType === 'INSERT') {
+  const newMessage = payload.new as unknown as UIMessage; // Cast here!
+  setMessages(prev => {
+    if (prev.some(m => m.id === newMessage.id)) return prev;
+    return [...prev, newMessage];
+  });
+}
+
+if (payload.eventType === 'UPDATE') {
+  const updatedMsg = payload.new as unknown as UIMessage; // Cast here too!
+  setMessages(prev => prev.map(m => m.id === updatedMsg.id ? updatedMsg : m));
+}
       })
       .on('broadcast', { event: 'typing' }, ({ payload }) => {
         if (payload.userId !== profile?.id) setPartnerTyping(payload.typing);
@@ -312,36 +301,49 @@ export default function MessagingView() {
 
     roomChannelRef.current = roomChannel;
     return () => { roomChannel.unsubscribe(); roomChannelRef.current = null; };
-  }, [activeChat?.project_id, profile?.id, scrollToBottom]);
+  }, [activeChat?.project_id, profile?.id, scrollToBottom, triggerRefresh]);
 
-  /* ================= 4. DYNAMIC LOGIC ================= */
-
+  /* ================= 6. DYNAMIC LOGIC ================= */
   const activeChatPartnerName = useMemo(() => {
     if (!activeChat) return '';
     const isManager = profile?.role?.toLowerCase() === 'manager';
-    
-    if (isManager) {
-      return activeChat.seeker_profiles?.full_name || 'Candidate';
-    }
-    return activeChat.projects?.profiles?.full_name || 'Project Manager';
+    return isManager 
+      ? activeChat.seeker_profiles?.full_name || 'Candidate'
+      : activeChat.projects?.profiles?.full_name || 'Project Manager';
   }, [activeChat, profile]);
 
-  /* ================= 5. HANDLERS ================= */
+  const groupedMessages = useMemo(() => {
+  const groups: Record<string, UIMessage[]> = {};
+    messages.forEach(msg => {
+      const date = new Date(msg.created_at ?? new Date().toISOString());
+      let label = format(date, 'MMMM d, yyyy');
+      if (isToday(date)) label = 'Today';
+      else if (isYesterday(date)) label = 'Yesterday';
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(msg);
+    });
+    return groups;
+  }, [messages]);
 
+  /* ================= 7. HANDLERS ================= */
   const handleUpdateStatus = async (newStatus: 'accepted' | 'declined') => {
-    if (!activeChat || !profile) return;
-    const { error } = await supabase
-      .from('invitations')
-      .update({ status: newStatus })
-      .eq('project_id', activeChat.project_id)
-      .eq(profile.role === 'manager' ? 'manager_id' : 'seeker_id', profile.id);
+  // Add project_id to the check here
+  if (!activeChat?.project_id || !profile) return;
 
-    if (error) toast.error(error.message);
-    else {
-        toast.success(`Project ${newStatus}!`);
-        loadChats(); 
-    }
-  };
+  const { error } = await supabase
+    .from('invitations')
+    .update({ status: newStatus })
+    .eq('project_id', activeChat.project_id) // TypeScript now knows this is a string
+    .eq(profile.role?.toLowerCase() === 'manager' ? 'manager_id' : 'seeker_id', profile.id);
+
+  if (error) {
+    toast.error(error.message);
+  } else {
+    toast.success(`Project ${newStatus}!`);
+    loadChats(); 
+    triggerRefresh();
+  }
+};
 
   const handleReact = async (messageId: string, emoji: string) => {
     if (!profile) return;
@@ -354,27 +356,32 @@ export default function MessagingView() {
       ? currentReactions.filter((_, i) => i !== existingIndex)
       : [...currentReactions, { user_id: profile.id, emoji, full_name: profile.full_name }];
 
-    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: finalReactions } : m));
+    setMessages(prev => prev.map(m => 
+  m.id === messageId 
+    ? ({ ...m, reactions: finalReactions } as UIMessage) // Explicit cast here
+    : m
+));
     await supabase.from('messages').update({ reactions: finalReactions }).eq('id', messageId);
   };
 
   const handleSend = async (file?: File | null) => {
-    if (!profile || !activeChat || (!text.trim() && !file)) return;
-    const tempId = crypto.randomUUID();
-    const optimisticMsg: Message = {
-        id: tempId,
-        project_id: activeChat.project_id,
-        sender_id: profile.id,
-        content: text,
-        created_at: new Date().toISOString(),
-        file_url: null,
-        file_type: null,
-        is_read: false,
-        reactions: [],
-        isOptimistic: true
-    };
+  if (!profile || !activeChat || (!text.trim() && !file)) return;
+  const tempId = crypto.randomUUID();
+    const optimisticMsg: UIMessage = {
+    id: tempId,
+    project_id: activeChat.project_id,
+    sender_id: profile.id,
+    content: text,
+    created_at: new Date().toISOString(),
+    file_url: null,
+    file_type: null,
+    is_read: false,
+    reactions: [], // Match your interface
+    isOptimistic: true, // This now works!
+    receiver_id: null // Add missing fields if necessary
+  };
 
-    setMessages(prev => [...prev, optimisticMsg]);
+  setMessages(prev => [...prev, optimisticMsg]);
     setText('');
     setIsSending(true);
 
@@ -398,7 +405,7 @@ export default function MessagingView() {
 
       if (error) throw error;
       setMessages(prev => prev.filter(m => m.id !== tempId));
-      markAsRead(activeChat.project_id);
+      markAsRead(activeChat.project_id ?? '');
     } catch (error: any) {
       setMessages(prev => prev.filter(m => m.id !== tempId));
       toast.error(error.message || "Failed to send");
@@ -424,21 +431,7 @@ export default function MessagingView() {
     }, 2000);
   };
 
-  const groupedMessages = useMemo(() => {
-    const groups: Record<string, Message[]> = {};
-    messages.forEach(msg => {
-      const date = new Date(msg.created_at);
-      let label = format(date, 'MMMM d, yyyy');
-      if (isToday(date)) label = 'Today';
-      else if (isYesterday(date)) label = 'Yesterday';
-      if (!groups[label]) groups[label] = [];
-      groups[label].push(msg);
-    });
-    return groups;
-  }, [messages]);
-
-  /* ================= 6. RENDER ================= */
-
+  /* ================= 8. RENDER ================= */
   if (loading && chats.length === 0) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-950">
@@ -448,22 +441,49 @@ export default function MessagingView() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden relative">
-      <ChatSidebar 
-        chats={chats} 
-        activeChatId={activeChat ? `${activeChat.project_id}-${activeChat.seeker_id}` : undefined} 
-        onSelect={setActiveChat}
-        profile={profile} 
-        onMarkAllRead={markAllAsRead}
-      />
+    <div className="flex h-screen md:h-dvh bg-slate-950 overflow-hidden relative">
+     <ChatSidebar 
+  chats={chats} 
+  activeChatId={activeChat ? `${activeChat.project_id}-${activeChat.seeker_id}` : undefined} 
+  onSelect={(chat) => {
+    setActiveChat(chat);
+    setIsSidebarOpen(false);
+  }}
+  /* --- FIX START --- */
+  profile={profile ? {
+    full_name: profile.full_name ?? 'User',
+    avatar_url: profile.avatar_url ?? null,
+    role: profile.role ?? 'SEEKER'
+  } : undefined} 
+  /* --- FIX END --- */
+  onMarkAllRead={markAllAsRead}
+  isOpen={isSidebarOpen}    
+  onClose={() => setIsSidebarOpen(false)}
+/>
 
-      <main className="flex-1 flex flex-col relative bg-slate-950 border-l border-slate-800/50">
+      <main className="flex-1 flex flex-col relative bg-slate-950 border-l border-slate-800/50 min-w-0">
+        <div className="md:hidden flex items-center p-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md">
+          <button 
+            onClick={() => setIsSidebarOpen(true)}
+            title="Send Message" 
+            aria-label="Send Message"
+            className="p-2 -ml-2 text-slate-400 hover:text-white transition-colors"
+          >
+            <FaBars size={20} />
+          </button>
+          {!activeChat && (
+            <span className="ml-4 text-xs font-bold uppercase tracking-widest text-slate-400">
+              Messages
+            </span>
+          )}
+        </div>
+
         {activeChat ? (
           <>
             <ChatHeader 
-              title={activeChat.projects.title}
-              partnerName={activeChatPartnerName}
-              status={activeChat.status}
+              title={activeChat.projects?.title ?? 'Untitled Project'}
+             partnerName={activeChatPartnerName ?? 'User'}
+               status={activeChat.status ?? 'pending'}
               role={profile?.role}
               onUpdateStatus={handleUpdateStatus}
             />
@@ -481,7 +501,7 @@ export default function MessagingView() {
             {showJumpButton && (
               <button 
                 onClick={() => scrollToBottom()}
-                className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-5 py-2.5 rounded-full shadow-[0_10px_30px_rgba(79,70,229,0.4)] flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all animate-in slide-in-from-bottom-4"
+                className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-5 py-2.5 rounded-full shadow-[0_10px_30px_rgba(79,70,229,0.4)] z-30 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all animate-in slide-in-from-bottom-4"
               >
                 <FaArrowDown size={10} /> 
                 {hasNewUnseen ? 'New Messages' : 'Jump to Bottom'}
@@ -497,11 +517,19 @@ export default function MessagingView() {
             />
           </>
         ) : (
-          <div className="m-auto text-center">
-            <div className="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-slate-800">
+          <div className="m-auto text-center px-6">
+            <div className="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-slate-800 shadow-xl">
                 <FaHashtag size={32} className="text-slate-700" />
             </div>
-            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-500">Select a project to begin</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-500">
+              Select a project to begin
+            </p>
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="mt-8 md:hidden text-indigo-400 text-xs font-bold py-2 px-4 border border-indigo-400/30 rounded-full"
+            >
+              Open Contacts
+            </button>
           </div>
         )}
       </main>

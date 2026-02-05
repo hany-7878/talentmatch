@@ -106,27 +106,32 @@ export default function PostJobModal({
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-2">Deadline</label>
-              <input title='newJob input'
-                type="date"
-                required
-                value={newJob.deadline} 
-                onChange={e => setNewJob({...newJob, deadline: e.target.value})} 
-                className="w-full p-4 bg-gray-50 rounded-2xl border-none font-bold text-gray-700 outline-none" 
-              />
+              <input 
+  title='newJob input'
+  type="date"
+  required
+  min={new Date().toISOString().split("T")[0]} 
+  value={newJob.deadline} 
+  onChange={e => setNewJob({...newJob, deadline: e.target.value})} 
+  className="w-full p-4 bg-gray-50 rounded-2xl border-none font-bold text-gray-700 outline-none" 
+/>
             </div>
           </div>
 
+         
           {/* Requirements & Description */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-2">Requirements (Skills Array)</label>
-            <input 
-              required 
-              value={newJob.requirements} 
-              onChange={e => setNewJob({...newJob, requirements: e.target.value})} 
-              className="w-full p-4 bg-indigo-50/50 text-indigo-700 rounded-2xl border-none font-bold outline-none" 
-              placeholder="React, AWS, Python..." 
-            />
-          </div>
+<div className="space-y-2">
+  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-2">
+    Technical Requirements (Comma Separated)
+  </label>
+  <input 
+    required 
+    value={newJob.requirements} 
+    onChange={e => setNewJob({...newJob, requirements: e.target.value})} 
+    className="w-full p-4 bg-indigo-50/50 text-indigo-700 rounded-2xl border-none font-bold outline-none" 
+    placeholder="React, AWS, Python (Use commas)"  
+  />
+</div>
 
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-2">Mission Description</label>

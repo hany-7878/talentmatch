@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import  { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { FaCheckDouble, FaFileDownload } from 'react-icons/fa';
 
@@ -6,8 +6,6 @@ const EMOJIS = ['👍', '🔥', '❤️', '🚀', '✅'];
 
 export default function MessageItem({ msg, isOwn, currentUserId, onReact }: any) {
   const [isHovered, setIsHovered] = useState(false);
-
-  // 1. Performance: Memoize reaction grouping to prevent lag in long chats
   const reactionGroups = useMemo(() => {
     if (!msg.reactions) return {};
     return msg.reactions.reduce((acc: any, curr: any) => {
@@ -26,8 +24,7 @@ export default function MessageItem({ msg, isOwn, currentUserId, onReact }: any)
     >
       <div className={`max-w-[85%] md:max-w-[75%] relative flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
         
-        {/* 2. Reaction Picker UX: High-end animation & Mobile-safe */}
-        {/* Hidden on mobile touch, revealed by group-hover on desktop */}
+        {/* 2. Reaction Picker Popup */}
         <div className={`absolute -top-11 ${isOwn ? 'right-0' : 'left-0'} flex gap-1 bg-slate-900 border border-slate-700/50 p-1 rounded-xl shadow-2xl transition-all duration-300 z-30 scale-95 origin-bottom ${
           isHovered ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 pointer-events-none'
         }`}>
@@ -55,7 +52,7 @@ export default function MessageItem({ msg, isOwn, currentUserId, onReact }: any)
               {msg.file_type?.startsWith('image') ? (
                 <img 
                   src={msg.file_url} 
-                  loading="lazy" // Performance for long chats
+                  loading="lazy" 
                   alt="attachment" 
                   className="max-h-64 w-full object-cover hover:scale-105 transition duration-500 cursor-zoom-in" 
                 />
@@ -70,7 +67,7 @@ export default function MessageItem({ msg, isOwn, currentUserId, onReact }: any)
           <p className="whitespace-pre-wrap break-words">{msg.content}</p>
         </div>
 
-        {/* 4. Reaction Badges: Visual feedback for 'Me' */}
+        {/* 4. Reactions Summary */}
         {Object.entries(reactionGroups).length > 0 && (
           <div className={`flex flex-wrap gap-1 mt-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
             {Object.entries(reactionGroups).map(([emoji, data]: any) => (
@@ -90,7 +87,7 @@ export default function MessageItem({ msg, isOwn, currentUserId, onReact }: any)
           </div>
         )}
 
-        {/* 5. Metadata: Quieter but clear */}
+        {/* 5. Timestamp and Read Receipt */}
         <div className={`flex items-center gap-2 mt-1.5 opacity-40 text-[9px] font-bold tracking-tight ${isOwn ? 'flex-row' : 'flex-row-reverse'}`}>
           <span className="uppercase">{format(new Date(msg.created_at), 'p')}</span>
           {isMe && (

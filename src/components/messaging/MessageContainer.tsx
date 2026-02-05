@@ -1,35 +1,33 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { Message } from '../../types';
 import { format, isToday, isYesterday } from 'date-fns';
-
-/* ================= TYPES ================= */
-interface Message {
-  id: string;
-  sender_id: string;
-  content: string;
-  created_at: string;
-  file_url?: string;
-  file_type?: string;
-  reactions?: { user_id: string; emoji: string }[];
-  isOptimistic?: boolean;
-}
 
 interface Props {
   groupedMessages: Record<string, Message[]>;
   currentUserId: string | undefined;
   partnerTyping: boolean;
   onReact: (messageId: string, emoji: string) => void;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+  onScroll: () => void;
 }
 
-export default function MessageContainer({ groupedMessages, currentUserId, partnerTyping, onReact }: Props) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+export default function MessageContainer({ 
+  groupedMessages, 
+  currentUserId, 
+  partnerTyping, 
+  onReact,
+  containerRef, 
+  scrollRef,    
+  onScroll     
+}: Props) {
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
-  // 1. SMART SCROLL LOGIC: Check if user is already at bottom
-  const handleScroll = () => {
+
+  const internalHandleScroll = () => {
+    onScroll();
     if (!containerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    // If user is within 100px of bottom, consider them "at bottom"
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
     setShouldAutoScroll(isAtBottom);
   };
@@ -38,15 +36,14 @@ export default function MessageContainer({ groupedMessages, currentUserId, partn
     if (shouldAutoScroll) {
       scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [groupedMessages, partnerTyping, shouldAutoScroll]);
+  }, [groupedMessages, partnerTyping, shouldAutoScroll, scrollRef]);
 
   return (
     <div 
-      ref={containerRef}
-      onScroll={handleScroll}
+      ref={containerRef} // Now controlled by parent
+      onScroll={internalHandleScroll}
       className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-8 custom-scrollbar bg-slate-950/20"
     >
-      {/* Max-width container to prevent bubbles from stretching too far on Ultra-wide monitors */}
       <div className="max-w-5xl mx-auto space-y-10">
         {Object.entries(groupedMessages).map(([date, msgs]) => (
           <div key={date}>
@@ -56,8 +53,6 @@ export default function MessageContainer({ groupedMessages, currentUserId, partn
               {msgs.map((m) => {
                 const isMe = m.sender_id === currentUserId;
                 const reactions = Array.isArray(m.reactions) ? m.reactions : [];
-                // Check if I have reacted to this specific message
-                const hasIReacted = reactions.some(r => r.user_id === currentUserId);
                 
                 return (
                   <div 
@@ -72,7 +67,6 @@ export default function MessageContainer({ groupedMessages, currentUserId, partn
                             : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700/50'
                         }`}
                       >
-                        {/* Improved Attachment Logic */}
                         {m.file_url && (
                           <div className="mb-2 rounded-lg overflow-hidden border border-white/10 bg-black/20">
                             {m.file_type?.startsWith('image/') ? (
@@ -88,7 +82,6 @@ export default function MessageContainer({ groupedMessages, currentUserId, partn
                         
                         <p className="leading-relaxed">{m.content}</p>
 
-                        {/* Reaction Trigger with Tooltip placeholder */}
                         {!m.isOptimistic && (
                           <button
                             onClick={() => onReact(m.id, '🔥')}
@@ -100,7 +93,6 @@ export default function MessageContainer({ groupedMessages, currentUserId, partn
                         )}
                       </div>
 
-                      {/* Rendered Reactions List with User Highlight */}
                       {reactions.length > 0 && (
                         <div className={`flex flex-wrap gap-1 mt-1.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
                           {reactions.map((r, i) => (
@@ -130,7 +122,6 @@ export default function MessageContainer({ groupedMessages, currentUserId, partn
         ))}
       </div>
 
-      {/* Quieter Typing Indicator */}
       {partnerTyping && (
         <div className="flex items-center gap-3 px-2 py-4 opacity-60 max-w-5xl mx-auto">
           <div className="flex gap-1">
@@ -142,11 +133,13 @@ export default function MessageContainer({ groupedMessages, currentUserId, partn
         </div>
       )}
 
+      {/* FIXED: The scroll target div now uses the prop ref */}
       <div ref={scrollRef} className="h-2 w-full" />
     </div>
   );
 }
 
+// ... DateSeparator stays exactly the same
 function DateSeparator({ date }: { date: string }) {
   let label = date;
   try {

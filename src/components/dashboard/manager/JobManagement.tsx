@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabaseClient'; 
 import { 
   FaEdit, FaTrashAlt, FaMapMarkerAlt, 
-  FaTimes, FaSave, FaBriefcase, FaCircleNotch, FaEye, FaLock, FaBolt, FaPlus 
+  FaTimes, FaSave, FaBriefcase, FaCircleNotch, FaEye, FaLock, FaBolt,
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
@@ -19,10 +19,11 @@ interface Job {
 
 interface JobManagementProps {
   onSelectJob?: (job: Job) => void;
-  onAddNew?: () => void; // Added for PM empty-state logic
+  onAddNew?: () => void; 
+  onDataChange: () => void; // Triggered to refresh parent stats
 }
 
-export default function JobManagement({ onSelectJob, onAddNew }: JobManagementProps) {
+export default function JobManagement({ onSelectJob, onAddNew, onDataChange }: JobManagementProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,33 +34,54 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
     fetchJobs();
   }, []);
 
-  // Senior Dev: Handle Scroll Lock
+  // Senior Dev: Modal Scroll Lock
   useEffect(() => {
-    if (editingJob) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+    document.body.style.overflow = editingJob ? 'hidden' : 'unset';
     return () => { document.body.style.overflow = 'unset'; };
   }, [editingJob]);
 
   const fetchJobs = async () => {
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      setLoading(true);
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        setLoading(false);
+        return;
+      }
 
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('manager_id', user.id)
-      .order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('manager_id', user.id)
+        .order('created_at', { ascending: false });
 
-    if (!error) setJobs(data || []);
-    setLoading(false);
+      if (error) throw error;
+
+      if (data) {
+        const sanitizedJobs = data.map((job: any) => ({
+          ...job,
+          budget: job.budget ?? '',
+          category: job.category ?? '',
+          description: job.description ?? '',
+          location_type: job.location_type ?? 'remote',
+          status: job.status ?? 'draft',
+          requirements: job.requirements ?? [],
+        })) as Job[];
+        setJobs(sanitizedJobs);
+      }
+    } catch (error: any) {
+      toast.error("Error loading inventory");
+      console.error(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleJobStatus = async (jobId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'open' ? 'closed' : 'open';
+    
+    // Optimistic Update
     setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
 
     const { error } = await supabase
@@ -69,16 +91,19 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
 
     if (error) {
       toast.error("Failed to update status");
-      fetchJobs(); 
+      fetchJobs(); // Rollback on error
     } else {
       toast.success(`Job ${newStatus === 'open' ? 'Published' : 'Closed'}`);
+      onDataChange(); // Refresh Parent Stats
     }
   };
 
   const handleEditInit = (job: Job) => {
     setEditingJob({
       ...job,
-      requirements: Array.isArray(job.requirements) ? job.requirements.join(', ') : (job.requirements || '')
+      requirements: Array.isArray(job.requirements) 
+        ? job.requirements.join(', ') 
+        : (job.requirements || '')
     });
   };
 
@@ -91,29 +116,24 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
       ? editingJob.requirements.split(',').map(r => r.trim()).filter(Boolean)
       : editingJob.requirements;
 
-    const updatedData = {
-      ...editingJob,
-      requirements: reqArray,
-      title: editingJob.title.trim()
-    };
-
     const { error } = await supabase
       .from('projects')
       .update({
-        title: updatedData.title,
-        location_type: updatedData.location_type,
-        status: updatedData.status,
-        description: updatedData.description,
-        budget: updatedData.budget,
-        requirements: updatedData.requirements,
-        category: updatedData.category
+        title: editingJob.title.trim(),
+        location_type: editingJob.location_type,
+        status: editingJob.status,
+        description: editingJob.description,
+        budget: editingJob.budget,
+        requirements: reqArray,
+        category: editingJob.category
       })
       .eq('id', editingJob.id);
 
     if (!error) {
-      setJobs(prev => prev.map(j => j.id === editingJob.id ? (updatedData as Job) : j));
-      setEditingJob(null);
       toast.success("Changes saved!");
+      setEditingJob(null);
+      await fetchJobs(); // Refresh local list
+      onDataChange();    // Refresh Parent Stats
     } else {
       toast.error(error.message);
     }
@@ -132,6 +152,9 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
     if (!error) {
       setJobs(jobs.filter(j => j.id !== id));
       toast.success("Job deleted permanently");
+      onDataChange(); // Refresh Parent Stats
+    } else {
+      toast.error("Delete failed");
     }
     setDeleteConfirmId(null);
     setActionLoading(false);
@@ -150,7 +173,6 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
           <h2 className="text-3xl font-black text-slate-900 tracking-tight">Inventory</h2>
           <p className="text-slate-500 font-medium">You have {jobs.length} active listings</p>
         </div>
-        
       </div>
 
       <div className="grid gap-4">
@@ -175,9 +197,7 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
                 </div>
                 
                 <div className="flex-1 cursor-pointer" onClick={() => onSelectJob?.(job)}>
-                  <h3 className="font-bold text-slate-900 text-lg leading-tight mb-1">
-                    {job.title}
-                  </h3>
+                  <h3 className="font-bold text-slate-900 text-lg leading-tight mb-1">{job.title}</h3>
                   <div className="flex items-center gap-4">
                     <span className="flex items-center gap-1.5 text-[10px] text-slate-400 font-black uppercase tracking-widest">
                       <FaMapMarkerAlt className="text-indigo-400" /> {job.location_type}
@@ -203,6 +223,7 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
                 
                 <div className="flex items-center gap-1 bg-slate-50 rounded-2xl p-1">
                   <button 
+                    aria-label="Edit Job"
                     onClick={() => handleEditInit(job)} 
                     className="p-3 text-slate-400 hover:text-indigo-600 transition-colors"
                   >
@@ -225,7 +246,7 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
         )}
       </div>
 
-      {/* Optimized Modal */}
+      {/* Edit Modal */}
       {editingJob && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !actionLoading && setEditingJob(null)} />
@@ -235,7 +256,10 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
                 <h3 className="font-black text-slate-900 text-2xl tracking-tight">Edit Post</h3>
                 <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Refining Opportunity</p>
               </div>
-              <button onClick={() => setEditingJob(null)} className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-full transition-all">
+              <button title='Close Edit Modal'
+                onClick={() => setEditingJob(null)} 
+                className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-full transition-all"
+              >
                 <FaTimes />
               </button>
             </div>
@@ -244,7 +268,7 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
               <div className="space-y-4">
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Position Title</label>
-                  <input 
+                  <input title='Position Title' 
                     type="text" 
                     value={editingJob.title}
                     onChange={(e) => setEditingJob({...editingJob, title: e.target.value})}
@@ -266,7 +290,7 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
                   </div>
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Work Mode</label>
-                    <select 
+                    <select title='a' 
                       value={editingJob.location_type}
                       onChange={(e) => setEditingJob({...editingJob, location_type: e.target.value})}
                       className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none font-bold focus:border-indigo-500 focus:bg-white transition-all appearance-none"
@@ -280,7 +304,7 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
 
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Requirements (Separated by commas)</label>
-                  <textarea 
+                  <textarea  title='editing'
                     value={editingJob.requirements}
                     onChange={(e) => setEditingJob({...editingJob, requirements: e.target.value})}
                     className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none font-bold focus:border-indigo-500 focus:bg-white transition-all min-h-[80px]"
@@ -289,7 +313,7 @@ export default function JobManagement({ onSelectJob, onAddNew }: JobManagementPr
 
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Full Description</label>
-                  <textarea 
+                  <textarea title='editing'
                     value={editingJob.description}
                     onChange={(e) => setEditingJob({...editingJob, description: e.target.value})}
                     rows={5}

@@ -1,21 +1,15 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { FaPaperPlane, FaSmile, FaPaperclip, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
+import type { MessageInputProps } from '../../types';
 
-interface MessageInputProps {
-  text: string;
-  setText: (val: string) => void;
-  onSend: (file?: File | null) => void;
-  onTyping: (val: string) => void;
-  isSending: boolean;
-}
 
 const MAX_FILE_SIZE_MB = 5;
 
 export default function MessageInput({ text, setText, onSend, onTyping, isSending }: MessageInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Added for debounce
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null); 
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -28,8 +22,7 @@ export default function MessageInput({ text, setText, onSend, onTyping, isSendin
     };
   }, [previewUrl]);
 
-  // 2. ACTUAL Debounced Typing Logic
-  // We send the typing signal 500ms after the user stops typing
+  // 2. Debounced typing indicator
   const debouncedTyping = useCallback(
     (val: string) => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -68,8 +61,6 @@ export default function MessageInput({ text, setText, onSend, onTyping, isSendin
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if ((!text.trim() && !selectedFile) || isSending) return;
-
-    // Clear typing timeout immediately on send
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     
     onSend(selectedFile);
@@ -105,7 +96,7 @@ export default function MessageInput({ text, setText, onSend, onTyping, isSendin
           value={text}
           onChange={(e) => {
             setText(e.target.value);
-            debouncedTyping(e.target.value); // Triggering the real debounce
+            debouncedTyping(e.target.value); 
             e.target.style.height = 'auto';
             e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
           }}
