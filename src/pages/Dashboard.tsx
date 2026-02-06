@@ -9,7 +9,7 @@ import Sidebar from '../components/dashboard/Common/Sidebar';
 import { LoadingState, FinalizingState } from './DashboardStates';
 import { FaArrowUp, FaBars } from 'react-icons/fa';
 import Toast from '../components/ui/Toast';
-// Update this line
+
 import {  useSearchParams } from 'react-router-dom';
 
 // Lazy Loaded Views
@@ -19,7 +19,7 @@ const MessagingView = lazy(() => import('../components/messaging/MessagingView')
 const ProfileSettings = lazy(() => import('../components/dashboard/Common/ProfileSettings'));
 const GeneralSettings = lazy(() => import('../components/dashboard/Common/GeneralSettings'));
 const SeekerApplications = lazy(() => import('../components/dashboard/seeker/SeekerApplications'));
-const [searchParams] = useSearchParams()
+
 
 const BREADCRUMB_MAP: Record<string, string> = {
   [DASHBOARD_TABS.PIPELINE]: 'Manager Hub',
@@ -35,6 +35,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
 export default function Dashboard() {
   const { profile, logout, isLoading, user, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const currentRole = (profile?.role?.toLowerCase() as UserRole) || 'seeker';
 const isManager = currentRole === 'manager';
   
@@ -56,7 +57,6 @@ const isManager = currentRole === 'manager';
   const tabFromUrl = searchParams.get('tab');
   
   if (tabFromUrl) {
-    // Check if the URL tab matches any of our valid DASHBOARD_TABS (case-insensitive)
     const matchedTab = Object.values(DASHBOARD_TABS).find(
       (t) => t.toLowerCase() === tabFromUrl.toLowerCase()
     );
