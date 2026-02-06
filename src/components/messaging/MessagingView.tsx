@@ -20,15 +20,6 @@ import MessageInput from './MessageInput';
 
 type DBMessage = Database['public']['Tables']['messages']['Row'];
 
-// interface UIMessage extends Omit<DBMessage, 'reactions'> {
-//   isOptimistic?: boolean;
-//   // Define reactions strictly instead of using 'Json'
-//   reactions: Array<{
-//     user_id: string;
-//     emoji: string;
-//     full_name: string;
-//   }> | null;
-// }
 interface MessagingViewProps {
   onRefreshNotifs?: () => void; 
 }
@@ -440,7 +431,7 @@ if (payload.eventType === 'UPDATE') {
   }
 
   return (
-    <div className="flex h-screen md:h-dvh bg-slate-950 overflow-hidden relative">
+    <div className="flex h-dvh max-h-dvh bg-slate-950 overflow-hidden relative">
      <ChatSidebar 
   chats={chats} 
   activeChatId={activeChat ? `${activeChat.project_id}-${activeChat.seeker_id}` : undefined} 
@@ -460,8 +451,8 @@ if (payload.eventType === 'UPDATE') {
   onClose={() => setIsSidebarOpen(false)}
 />
 
-      <main className="flex-1 flex flex-col relative bg-slate-950 border-l border-slate-800/50 min-w-0">
-        <div className="md:hidden flex items-center p-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md">
+      <main className="flex-1 flex flex-col min-w-0 bg-slate-950 border-l border-slate-800/50 overflow-hidden relative">
+        <div className="  md:hidden flex items-center p-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md">
           <button 
             onClick={() => setIsSidebarOpen(true)}
             title="Send Message" 

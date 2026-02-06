@@ -2,7 +2,7 @@ import {
   FaThLarge, FaBriefcase, FaUsers,   
   FaCog, FaTimes, FaUserCircle, FaRocket, FaPaperPlane, FaComments
 } from 'react-icons/fa';
-import { useMemo } from 'react'; 
+import { useMemo, useEffect } from 'react';
 
 interface SidebarProps {
   isOpen: boolean;       
@@ -23,6 +23,18 @@ export default function Sidebar({
   applicationCount = 0,
   messageCount = 0 
 }: SidebarProps) {
+
+  
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
 
   const links = useMemo(() => {
     const formatBadge = (count: number) => (count > 99 ? '99+' : count);
@@ -50,7 +62,7 @@ export default function Sidebar({
         messageLink,
       ];
     }
-    
+
     return [
       { name: 'Explore Jobs', icon: <FaThLarge />, tab: 'discovery' }, 
       { 
@@ -78,15 +90,21 @@ export default function Sidebar({
         />
       )}
 
-      <aside className={`
-        fixed inset-y-0 left-0 z-[80] w-72 bg-slate-950 text-slate-400 flex flex-col h-screen 
-        border-r border-slate-800/50 transition-transform duration-300 ease-in-out
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
-        lg:relative lg:translate-x-0
-      `}>
-        
-        {/* Brand Header - FULL LOGIC KEPT */}
-        <div className="p-8">
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-[80]
+          w-72
+          bg-slate-950 text-slate-400
+          flex flex-col
+          h-dvh overflow-hidden
+          border-r border-slate-800/50
+          transition-transform duration-300 ease-in-out
+          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+          lg:relative lg:translate-x-0
+        `}
+      >
+        {/* Brand Header */}
+        <div className="p-3 lg:px-8 border-b border-slate-800/50 shrink-0 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="relative w-12 h-12 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-700 p-0.5 shadow-xl shadow-indigo-500/20">
@@ -97,7 +115,8 @@ export default function Sidebar({
                     className="w-full h-full object-cover transform scale-110"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
-                      e.currentTarget.parentElement!.innerHTML = '<span class="text-white font-black italic">TM</span>';
+                      e.currentTarget.parentElement!.innerHTML =
+                        '<span class="text-white font-black italic">TM</span>';
                     }}
                   />
                 </div>
@@ -125,17 +144,21 @@ export default function Sidebar({
             </button>
           </div>
         </div>
-        
-        {/* Main Navigation - FULL LOGIC KEPT */}
-        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto mt-4 custom-scrollbar">
-          <p className="text-[10px] uppercase tracking-widest text-slate-600 font-black mb-4 px-4">Workspace</p>
-          
+
+        {/* Navigation */}
+       <nav className="flex-[0.7_1_0%] md:flex-1 px-4 space-y-1.5 overflow-y-auto overscroll-contain mt-4 custom-scrollbar">
+          <p className="text-[10px] uppercase tracking-widest text-slate-600 font-black mb-4 px-4">
+            Workspace
+          </p>
+
           {links.map((link) => (
             <button 
               key={link.tab} 
               onClick={() => handleTabClick(link.tab)}
-              className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all group relative ${
-                activeTab === link.tab ? 'bg-indigo-600/10 text-white' : 'hover:bg-white/5 hover:text-slate-200'
+              className={`w-full flex items-center justify-between px-4 py-3 sm:py-3.5 rounded-2xl transition-all group relative ${
+                activeTab === link.tab
+                  ? 'bg-indigo-600/10 text-white'
+                  : 'hover:bg-white/5 hover:text-slate-200'
               }`}
             >
               <div className="flex items-center gap-4">
@@ -143,48 +166,60 @@ export default function Sidebar({
                   <div className="absolute left-0 w-1.5 h-6 bg-indigo-500 rounded-r-full shadow-[0_0_15px_rgba(99,102,241,0.5)]" />
                 )}
                 <span className={`text-lg transition-transform duration-300 group-hover:scale-110 ${
-                  activeTab === link.tab ? 'text-indigo-500' : 'text-slate-500 group-hover:text-indigo-400'
+                  activeTab === link.tab
+                    ? 'text-indigo-500'
+                    : 'text-slate-500 group-hover:text-indigo-400'
                 }`}>
                   {link.icon}
                 </span>
-                <span className="font-bold text-sm tracking-wide">{link.name}</span>
+                <span className="font-bold text-sm tracking-wide">
+                  {link.name}
+                </span>
               </div>
 
               {link.badge && (
-                <div className="flex items-center gap-2">
-                  <span className={`
-                    bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg min-w-[20px] text-center
-                    ring-2 ring-slate-950 shadow-lg
-                    ${link.isAlert ? 'animate-pulse shadow-[0_0_12px_rgba(79,70,229,0.4)]' : ''}
-                  `}>
-                    {link.badge}
-                  </span>
-                </div>
+                <span className={`bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg min-w-[20px] text-center ring-2 ring-slate-950 shadow-lg ${
+                  link.isAlert ? 'animate-pulse shadow-[0_0_12px_rgba(79,70,229,0.4)]' : ''
+                }`}>
+                  {link.badge}
+                </span>
               )}
             </button>
           ))}
         </nav>
 
-        {/* User Footer - FULL LOGIC KEPT */}
-        <div className="p-4 bg-slate-950/50 border-t border-slate-800/50">
+        {/* Footer */}
+        <div className="shrink-0 p-4 pb-safe pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] bg-slate-950/50 border-t border-slate-800/50">
           <button 
             onClick={() => handleTabClick('profile')}
-            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all group mb-2 ${
-              activeTab === 'profile' ? 'bg-indigo-600/10 text-white' : 'hover:bg-white/5 hover:text-slate-200'
+            className={`w-full flex items-center gap-4 px-4 py-3 sm:py-3.5 rounded-2xl transition-all group mb-2 ${
+              activeTab === 'profile'
+                ? 'bg-indigo-600/10 text-white'
+                : 'hover:bg-white/5 hover:text-slate-200'
             }`}
           >
-            <FaUserCircle className={`text-lg ${activeTab === 'profile' ? 'text-indigo-500' : 'text-slate-500'}`} />
+            <FaUserCircle className={`text-lg ${
+              activeTab === 'profile' ? 'text-indigo-500' : 'text-slate-500'
+            }`} />
             <span className="font-bold text-sm">My Profile</span>
           </button>
 
           <button 
             onClick={() => handleTabClick('settings')}
             className={`w-full flex items-center gap-4 px-4 py-3 transition-all group rounded-2xl ${
-              activeTab === 'settings' ? 'text-indigo-400 bg-indigo-500/5' : 'text-slate-500 hover:text-indigo-400'
+              activeTab === 'settings'
+                ? 'text-indigo-400 bg-indigo-500/5'
+                : 'text-slate-500 hover:text-indigo-400'
             }`}
           >
-            <FaCog className={`transition-all duration-500 ${activeTab === 'settings' ? 'rotate-90 text-indigo-400' : 'group-hover:rotate-90'}`} />
-            <span className="font-bold text-[10px] uppercase tracking-widest">Settings</span>
+            <FaCog className={`transition-all duration-500 ${
+              activeTab === 'settings'
+                ? 'rotate-90 text-indigo-400'
+                : 'group-hover:rotate-90'
+            }`} />
+            <span className="font-bold text-[10px] uppercase tracking-widest">
+              Settings
+            </span>
           </button>
         </div>
       </aside>

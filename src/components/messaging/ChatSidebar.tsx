@@ -14,9 +14,9 @@ export default function ChatSidebar({
 
   return (
     <>
-    
+      {/* Overlay: Added higher z-index to stay above everything but the sidebar */}
       <div 
-        className={`fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 transition-opacity duration-300 md:hidden ${
+        className={`fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[60] transition-opacity duration-300 md:hidden ${
           isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
@@ -24,8 +24,11 @@ export default function ChatSidebar({
 
       <aside className={`
         /* Mobile: Floating Overlay */
-        fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 border-r border-slate-800 
+        fixed inset-y-0 left-0 z-[70] w-72 bg-slate-900 border-r border-slate-800 
         transition-transform duration-300 ease-in-out flex flex-col
+        
+        /* RESPONSIVE FIX: Prevent overflow and handle mobile dynamic viewports */
+        h-dvh max-h-dvh overflow-hidden
         
         /* Desktop: Standard Column */
         md:relative md:translate-x-0 md:bg-slate-900/40 md:backdrop-blur-sm md:z-0
@@ -34,8 +37,8 @@ export default function ChatSidebar({
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         
-        {/* Header */}
-        <div className="p-6 flex items-center justify-between border-b border-slate-800/30">
+        {/* Header: Added shrink-0 and pt-safe for mobile notches */}
+        <div className="shrink-0 p-6 flex items-center justify-between border-b border-slate-800/30 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)]">
           <div className="flex flex-col">
             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
               Channels
@@ -47,20 +50,19 @@ export default function ChatSidebar({
           <div className="flex items-center gap-1">
             <button 
               onClick={onMarkAllRead}
-              className="p-2 text-slate-600 hover:text-indigo-400 transition-all"
+              className="p-2 text-slate-600 hover:text-indigo-400 transition-all active:scale-90"
               title="Mark all as read"
             >
               <FaCheckDouble size={14} />
             </button>
-            {/* Mobile-only Close Button */}
-            <button title='Close Sidebar' onClick={onClose} className="p-2 text-slate-500 md:hidden">
-              <FaTimes size={14} />
+            <button title='Close Sidebar' onClick={onClose} className="p-2 text-slate-500 md:hidden active:scale-90">
+              <FaTimes size={16} />
             </button>
           </div>
         </div>
 
-        {/* Chat List */}
-        <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+        {/* Chat List: flex-1 ensures this area takes up all remaining space and scrolls */}
+        <div className="flex-[0.7_1_0%] md:flex-1 px-3 py-4 space-y-1 overflow-y-auto overscroll-contain custom-scrollbar">
           {chats.map((chat) => {
             const compositeKey = `${chat.project_id}-${chat.seeker_id}`;
             const isActive = activeChatId === compositeKey;
@@ -86,11 +88,11 @@ export default function ChatSidebar({
                 }}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative ${
                   isActive 
-                    ? 'bg-indigo-600 text-white shadow-lg' 
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' 
                     : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
                 }`}
               >
-                <div className="relative flex-shrink-0">
+                <div className="relative shrink-0">
                   {avatarUrl ? (
                     <img alt='Avatar'
                       src={avatarUrl} 
@@ -123,12 +125,12 @@ export default function ChatSidebar({
           })}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-slate-800/50 bg-slate-950/40">
-          <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-all group cursor-pointer">
-            <div className="relative">
+      
+        <div className="shrink-0 p-4 border-t border-slate-800/50 bg-slate-950/40 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
+          <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-all group cursor-pointer active:bg-white/10">
+            <div className="relative shrink-0">
               {profile?.avatar_url ? (
-                <img alt='Profile Avatar' src={profile.avatar_url} className="w-9 h-9 rounded-lg object-cover" />
+                <img alt='' src={profile.avatar_url} className="w-9 h-9 rounded-lg object-cover" />
               ) : (
                 <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-black uppercase">
                   {profile?.full_name?.charAt(0)}
@@ -140,7 +142,7 @@ export default function ChatSidebar({
               <p className="text-[11px] font-bold text-slate-200 truncate">{profile?.full_name}</p>
               <p className="text-[9px] text-slate-500 font-medium uppercase tracking-tighter">{profile?.role}</p>
             </div>
-            <FaCog size={14} className="text-slate-600 group-hover:text-slate-300" />
+            <FaCog size={14} className="text-slate-600 group-hover:text-slate-300 shrink-0" />
           </div>
         </div>
       </aside>

@@ -106,8 +106,9 @@ const handleActionRefresh = () => {
         messageCount={notifs.messages}
       />
 
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative h-full">
-        <header className="h-20 sm:h-24 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 px-4 sm:px-8 flex justify-between items-center sticky top-0 z-40 pt-safe-top">
+      <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative overflow-hidden">
+
+        <header className="shrink-0 min-h-[4rem] sm:min-h-[6rem] bg-white/80 backdrop-blur-xl border-b border-slate-200/60 px-4 sm:px-8 flex justify-between items-center sticky top-0 z-40 pt-safe-top">
           <div className="flex items-center gap-4 sm:gap-6">
             <button 
               onClick={() => setIsSidebarOpen(true)} 
@@ -160,14 +161,14 @@ const handleActionRefresh = () => {
         </header>
 
       
-        <div className="flex-1 relative overflow-hidden bg-slate-50/50">
+        <div className="flex-[0.7_1_0%] md:flex-1 relative overflow-hidden bg-slate-50/50 flex flex-col min-h-0">
           <Suspense fallback={<LoadingState />}>
             <div 
                ref={scrollRef} 
                onScroll={handleScroll} 
-               className="h-full overflow-y-auto scrolling-touch no-scrollbar pb-safe-bottom"
-            >
-              <div className="p-4 sm:p-8 max-w-[1600px] mx-auto min-h-full">
+                 className="flex-1 overflow-y-auto overscroll-contain pb-safe-bottom"
+        >
+              <div className="p-4 sm:p-8 max-w-[1600px] mx-auto min-h-full flex flex-col">
                 <div className="animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
                   
                   {activeTab === DASHBOARD_TABS.MESSAGES && <MessagingView />}
@@ -207,7 +208,7 @@ const handleActionRefresh = () => {
                 <button
                 title='scroll'
                   onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-                  className="fixed bottom-8 right-8 p-4 bg-slate-900 text-white rounded-2xl shadow-xl hover:bg-indigo-600 transition-all z-50 active:scale-90 m-safe-bottom"
+                  className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] p-4 bg-slate-900 text-white rounded-2xl shadow-xl hover:bg-indigo-600 transition-all z-50 active:scale-90 m-safe-bottom"
                 >
                   <FaArrowUp size={14} />
                 </button>
