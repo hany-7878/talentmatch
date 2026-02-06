@@ -113,7 +113,7 @@ const handleActionRefresh = () => {
   if (!profile) return null;
 
   return (
-    <div className="flex h-dvh w-full bg-slate-50 overflow-hidden font-sans selection:bg-indigo-100 overscroll-contain">
+    <div className="fixed inset-0 flex w-full bg-slate-50 overflow-hidden font-sans selection:bg-indigo-100 overscroll-contain">
       
       <Sidebar
         isOpen={isSidebarOpen}
@@ -128,9 +128,9 @@ const handleActionRefresh = () => {
         messageCount={notifs.messages}
       />
 
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative overflow-hidden">
+      <main className="app-layout bg-slate-50 relative min-w-0">
 
-        <header className="shrink-0 min-h-[4rem] sm:min-h-[6rem] bg-white/80 backdrop-blur-xl border-b border-slate-200/60 px-4 sm:px-8 flex justify-between items-center sticky top-0 z-40 pt-safe-top">
+        <header className="shrink-0 min-h-[4rem] sm:min-h-[6rem] bg-slate-50 border-b border-slate-200/60 px-4 sm:px-8 flex justify-between items-center sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center gap-4 sm:gap-6">
             <button 
               onClick={() => setIsSidebarOpen(true)} 

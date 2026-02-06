@@ -5,70 +5,47 @@
 @layer base {
   * {
     -webkit-tap-highlight-color: transparent;
-    /* Prevents unwanted zooming on mobile while keeping it functional */
     touch-action: manipulation;
+    box-sizing: border-box;
   }
 
-  html, body {
-    /* Critical: Match your Dashboard background to prevent white bars */
-    background-color: #f8fafc; 
-    height: 100%;
-    width: 100%;
+  /* CRITICAL CHANGE: Target the root elements aggressively */
+  html, body, #root {
+    /* Match bg-slate-50 exactly */
+    background-color: #f8fafc !important; 
+    height: 100dvh; /* Changed from 100% to 100dvh */
+    width: 100vw;
     margin: 0;
     padding: 0;
-    /* Prevent the bounce effect that reveals the browser background */
     overflow: hidden;
-    position: fixed;
+    position: fixed; /* Essential: keeps the app 'locked' so white can't peek from underneath */
     @apply text-slate-900;
   }
 
   #root {
-    height: 100%;
     display: flex;
     flex-direction: column;
-    /* Ensure background persists during transitions */
-    background-color: #f8fafc; 
   }
 }
 
 @layer utilities {
-  .app-layout {
-    display: flex;
-    flex-direction: column;
-    height: 100dvh; /* Dynamic viewport height handles keyboard better */
+ .app-layout {
+    display: grid;
+    /* This creates two rows: one for the header (auto) and one for content (1fr) */
+    grid-template-rows: auto 1fr; 
+    height: 100dvh;
     width: 100%;
-    overflow: hidden;
-    /* Respects iPhone notch and home bar */
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .scrolling-content {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    @apply px-4 py-2;
-  }
-
-  .responsive-header {
-    /* Changed from slate-950 to white/80 to match your light dashboard */
-    @apply sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-slate-200;
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-
-  .responsive-footer {
-    @apply sticky bottom-0 z-50 w-full bg-white/80 backdrop-blur-md border-t border-slate-200;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-
-  .responsive-card {
-    @apply w-full max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm;
-  }
+    background-color: #f8fafc;
+    overflow: hidden; /* Keeps the main container locked */
 }
 
-
-aside {
-  height: 100dvh;
-  max-height: 100%;
+.scrolling-content {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* This ensures the gray background goes all the way down */
+    background-color: #f8fafc;
+    /* Add the safe area padding here inside the scroller */
+    padding-bottom: env(safe-area-inset-bottom, 24px);
+}
 }
