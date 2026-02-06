@@ -9,6 +9,8 @@ import Sidebar from '../components/dashboard/Common/Sidebar';
 import { LoadingState, FinalizingState } from './DashboardStates';
 import { FaArrowUp, FaBars } from 'react-icons/fa';
 import Toast from '../components/ui/Toast';
+// Update this line
+import {  useSearchParams } from 'react-router-dom';
 
 // Lazy Loaded Views
 const ManagerView = lazy(() => import('../components/dashboard/manager/ManagerView'));
@@ -17,7 +19,7 @@ const MessagingView = lazy(() => import('../components/messaging/MessagingView')
 const ProfileSettings = lazy(() => import('../components/dashboard/Common/ProfileSettings'));
 const GeneralSettings = lazy(() => import('../components/dashboard/Common/GeneralSettings'));
 const SeekerApplications = lazy(() => import('../components/dashboard/seeker/SeekerApplications'));
-
+const [searchParams] = useSearchParams()
 
 const BREADCRUMB_MAP: Record<string, string> = {
   [DASHBOARD_TABS.PIPELINE]: 'Manager Hub',
@@ -26,7 +28,6 @@ const BREADCRUMB_MAP: Record<string, string> = {
   [DASHBOARD_TABS.PROFILE]: 'Account Profile',
   [DASHBOARD_TABS.SETTINGS]: 'System Settings',
   [DASHBOARD_TABS.APPLICATIONS]: 'My Applications',
-  // Manual keys for sub-views
   management: 'Project Inventory',
   invites: 'Talent Outreach'
 };
@@ -50,6 +51,21 @@ const isManager = currentRole === 'manager';
     document.body.style.overscrollBehaviorY = 'contain';
     return () => { document.body.style.overscrollBehaviorY = 'auto'; };
   }, []);
+
+  useEffect(() => {
+  const tabFromUrl = searchParams.get('tab');
+  
+  if (tabFromUrl) {
+    // Check if the URL tab matches any of our valid DASHBOARD_TABS (case-insensitive)
+    const matchedTab = Object.values(DASHBOARD_TABS).find(
+      (t) => t.toLowerCase() === tabFromUrl.toLowerCase()
+    );
+
+    if (matchedTab && matchedTab !== activeTab) {
+      setActiveTab(matchedTab);
+    }
+  }
+}, [searchParams, activeTab, setActiveTab]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
   setToast({ message, type });
@@ -82,9 +98,15 @@ const handleActionRefresh = () => {
 
   // LOGIC PRESERVED: Message Redirect
   const handleMessageRedirect = useCallback((projectId: string, recipientId: string) => {
-    setActiveTab(DASHBOARD_TABS.MESSAGES);
-    navigate(`?tab=${DASHBOARD_TABS.MESSAGES}&projectId=${projectId}&recipientId=${recipientId}`);
-  }, [navigate, setActiveTab]);
+  // 1. Update state immediately
+  setActiveTab(DASHBOARD_TABS.MESSAGES);
+  
+  // 2. Update URL with lowercase 'messages' for better browser compatibility
+  navigate(
+    `?tab=messages&projectId=${projectId}&recipientId=${recipientId}`, 
+    { replace: true }
+  );
+}, [navigate, setActiveTab]);
 
   if (isLoading) return <LoadingState />;
   if (user && !profile) return <FinalizingState onRefresh={refreshProfile} />;

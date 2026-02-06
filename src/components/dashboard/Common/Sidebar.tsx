@@ -146,7 +146,7 @@ export default function Sidebar({
         </div>
 
         {/* Navigation */}
-       <nav className="flex-[0.7_1_0%] md:flex-1 px-4 space-y-1.5 overflow-y-auto overscroll-contain mt-4 custom-scrollbar">
+       <nav className="flex-[0.8_1_0%] md:flex-1 px-4 space-y-1.5 overflow-y-auto overscroll-contain mt-4 custom-scrollbar">
           <p className="text-[10px] uppercase tracking-widest text-slate-600 font-black mb-4 px-4">
             Workspace
           </p>
