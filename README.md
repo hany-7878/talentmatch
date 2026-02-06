@@ -1,19 +1,75 @@
 <img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/28a2dc43-dd57-43c0-8842-8d846e6ecc42" />
 
 # 🚀 TalentMatch Pro: Nexus Edition
+🔗 **Live Demo:** [https://your-vercel-url.vercel.app  ](https://talentmatch-nexusproject.vercel.app/)
 
 ### **The Professional PWA Marketplace for Elite Talent & Project Managers**
 
 TalentMatch Pro is a high-performance, real-time Progressive Web App (PWA) that connects skilled Seekers with visionary Project Managers. Built with a "Mobile-First" philosophy and a "Zero-Latency" mindset, this project serves as a cornerstone for the **Project Nexus** portfolio.
 
-## 💎 Project Nexus: Technical Excellence
 
-To meet the rigorous standards of Project Nexus, this application goes beyond basic CRUD operations:
+---
 
-* **Full TypeScript Implementation:** End-to-end type safety ensures a maintainable, self-documenting codebase.
-* **PWA Standalone Experience:** Fully installable on mobile with offline caching and custom splash screens.
-* **Real-Time Engine:** Live messaging and notifications using Supabase Broadcast and Presence.
-* **Advanced Security:** Row Level Security (RLS) policies protect every transaction at the database level.
+## 🎯 The Real-World Problem: The "Hiring Noise" Crisis
+
+Modern job and freelance platforms suffer from a "Volume vs. Value" crisis that creates a disconnect between talent and opportunity:
+
+* **For the Growth-Focused Candidate:** The "Black Hole" effect. Applying to roles without salary transparency or status updates leads to wasted time and "application fatigue."
+* **For the Time-Constrained Manager:** "Filter Fatigue." Receiving an overwhelming number of low-quality applications makes it impossible to find the right fit quickly.
+
+This disconnect slows down hiring decisions and reduces trust in professional marketplaces.
+
+## 💡 The TalentMatch Solution
+
+TalentMatch Pro is engineered to restore transparency and speed through an API-first, "Zero-Latency" architecture:
+
+1.  **Actionable Clarity:** Requires transparent salary ranges and remote/on-site expectations, ensuring candidates only apply to roles that fit.
+2.  **AI-Guided Relevance:** Uses structured skill-tagging and match signals to help managers prioritize quality over volume.
+3.  **Real-Time Feedback Loop:** A high-speed messaging engine and live status tracking (Applied/Viewed/Shortlisted) eliminate the "Black Hole" and keep the hiring momentum alive.
+4.  **Mobile-First Efficiency:** Designed as a PWA so that busy managers and on-the-go candidates can communicate and close deals anywhere, instantly.
+
+---
+
+## 🛠 Technical Challenge: Synchronized Mobile Routing
+
+### Objective  
+Resolve navigation stalls and UI desynchronization on **Mobile Chrome**.
+
+### Problem  
+Mobile browsers cached route state, causing the UI to remain on the previous tab even when the URL updated—breaking expected navigation behavior in the PWA.
+
+### Solution
+
+- **Popstate Listener**  
+  Implemented a global `window.popstate` listener to synchronize browser history changes with React state.
+
+- **Deep-Linking Architecture**  
+  Used `useSearchParams` to ensure project-specific message threads are accessible directly via URL.
+
+- **Viewport Engineering**  
+  Eliminated PWA “white-bar” layout glitches by implementing:
+  - `viewport-fit=cover`
+  - Dynamic viewport units (`dvh`)
+  - Mobile-safe height calculations
+
+Result: Smooth, reliable navigation across mobile browsers and installed PWAs.
+
+---
+
+## 🔒 Security Architecture
+
+TalentMatch Pro follows a **Deny-by-Default** security model:
+
+- **Row Level Security (RLS)**  
+  Users can only read messages where their `user_id` matches the sender or recipient.
+
+- **Role-Based Validation**  
+  Server-side enforcement prevents Seekers from accessing Manager-only project creation and controls.
+
+- **Environment Safety**  
+  All sensitive keys are secured using **Vercel encrypted environment variables**—never exposed client-side.
+
+---
 
 ## ✨ Features Breakdown
 
@@ -82,7 +138,7 @@ The UI is broken into modular, reusable components (Sidebar, MessageContainer, P
 
 1. **Clone the Repository:**
 ```bash
-git clone https://github.com/YOUR_USERNAME/talentmatch.git
+git clone https://github.com/hany-7878/talentmatch.git
 
 ```
 2. **Install Dependencies:**
