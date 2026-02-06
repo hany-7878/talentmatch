@@ -2,23 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-
 @layer base {
   * {
     -webkit-tap-highlight-color: transparent;
+    /* Prevents unwanted zooming on mobile while keeping it functional */
     touch-action: manipulation;
   }
 
   html, body {
-    min-height: 100%;
+    /* Critical: Match your Dashboard background to prevent white bars */
+    background-color: #f8fafc; 
+    height: 100%;
     width: 100%;
-    @apply bg-slate-950;
+    margin: 0;
+    padding: 0;
+    /* Prevent the bounce effect that reveals the browser background */
+    overflow: hidden;
+    position: fixed;
+    @apply text-slate-900;
   }
 
   #root {
-    min-height: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
+    /* Ensure background persists during transitions */
+    background-color: #f8fafc; 
   }
 }
 
@@ -26,9 +35,12 @@
   .app-layout {
     display: flex;
     flex-direction: column;
-    min-height: 100dvh;
+    height: 100dvh; /* Dynamic viewport height handles keyboard better */
     width: 100%;
     overflow: hidden;
+    /* Respects iPhone notch and home bar */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .scrolling-content {
@@ -40,20 +52,23 @@
   }
 
   .responsive-header {
-    @apply sticky top-0 z-50 w-full bg-slate-950/80 backdrop-blur-md border-b border-white/10;
-    padding-top: env(safe-area-inset-top, 12px);
+    /* Changed from slate-950 to white/80 to match your light dashboard */
+    @apply sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-slate-200;
+    padding-top: env(safe-area-inset-top, 0px);
   }
 
   .responsive-footer {
-    @apply sticky bottom-0 z-50 w-full bg-slate-950/80 backdrop-blur-md border-t border-white/10;
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+    @apply sticky bottom-0 z-50 w-full bg-white/80 backdrop-blur-md border-t border-slate-200;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .responsive-card {
-    @apply w-full max-w-full overflow-hidden rounded-xl border border-white/5;
+    @apply w-full max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm;
   }
 }
-aside {
 
+
+aside {
+  height: 100dvh;
   max-height: 100%;
 }
